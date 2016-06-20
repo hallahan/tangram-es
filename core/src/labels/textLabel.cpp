@@ -25,6 +25,8 @@ TextLabel::TextLabel(Label::Transform _transform, Type _type, Label::Options _op
       m_anchorPoint(_anchorPoint),
       m_line(_line) {
 
+    m_options.repeatDistance = 0;
+
     applyAnchor(_dim, glm::vec2(0.0), _anchor);
 }
 
@@ -146,6 +148,9 @@ Range TextLabel::obbs(const ScreenTransform& _transform, std::vector<OBB>& _obbs
 
     if (m_occludedLastFrame) { dim += 2; }
 
+    // FIXME: Only for testing
+    if (state() == State::dead) { dim -= 4; }
+
     if (m_type == Label::Type::curved) {
 
         float width = dim.x;
@@ -186,9 +191,6 @@ Range TextLabel::obbs(const ScreenTransform& _transform, std::vector<OBB>& _obbs
         return { first, cnt };
 
     } else {
-
-        // FIXME: Only for testing
-        if (state() == State::dead) { dim -= 4; }
 
         auto obb = OBB(m_transform.state.screenPos,
                        m_transform.state.rotation,
