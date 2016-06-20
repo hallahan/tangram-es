@@ -31,9 +31,12 @@ public:
                 float _extrudeScale, LabelProperty::Anchor _anchor,
                 SpriteLabels& _labels, size_t _labelsPos);
 
-    void updateBBoxes(float _zoomFract) override;
+    void pushTransform(ScreenTransform& _transform) override;
 
-    void pushTransform() override;
+    bool updateScreenTransform(const glm::mat4& _mvp, const glm::vec2& _screenSize,
+                               bool _testVisibility, ScreenTransform& _transform);
+
+    Range obbs(const ScreenTransform& _transform, std::vector<OBB>& _obbs) override;
 
 private:
 

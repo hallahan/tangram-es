@@ -1,6 +1,8 @@
 #include "labels/spriteLabel.h"
+
 #include "gl/dynamicQuadMesh.h"
 #include "style/pointStyle.h"
+#include "util/geom.h"
 #include "platform.h"
 
 namespace Tangram {
@@ -24,8 +26,7 @@ SpriteLabel::SpriteLabel(Label::Transform _transform, glm::vec2 _size, Label::Op
 }
 
 void SpriteLabel::applyAnchor(const glm::vec2& _dimension, const glm::vec2& _origin,
-    LabelProperty::Anchor _anchor)
-{
+                              LabelProperty::Anchor _anchor) {
     // _dimension is not applied to the sprite anchor since fractionnal zoom
     // level would result in scaling the sprite size dynamically, instead we
     // store a factor between 0..1 to scale the sprite accordingly
@@ -40,21 +41,47 @@ void SpriteLabel::applyAnchor(const glm::vec2& _dimension, const glm::vec2& _ori
     m_anchor.y =  (m_dim.y * m_anchor.y);
 }
 
-void SpriteLabel::updateBBoxes(float _zoomFract) {
+bool SpriteLabel::updateScreenTransform(const glm::mat4& _mvp, const glm::vec2& _screenSize,
+                                        bool _testVisibility, ScreenTransform& _transform) {
+
+    bool clipped = false;
+    glm::vec2 p0 = m_transform.modelPosition1;
+
+    glm::vec2 screenPosition = worldToScreenSpace(_mvp, glm::vec4(p0, 0.0, 1.0),
+                                                  _screenSize, clipped);
+
+    if (_testVisibility && clipped) { return false; }
+
+    screenPosition += m_anchor;
+    screenPosition.x += m_options.offset.x;
+    screenPosition.y -= m_options.offset.y;
+
+    m_transform.state.screenPos = screenPosition;
+
+    return true;
+}
+
+Range SpriteLabel::obbs(const ScreenTransform& _transform, std::vector<OBB>& _obbs) {
+    Range range {int(_obbs.size()), 1};
+
     glm::vec2 halfSize = m_dim * 0.5f;
     glm::vec2 sp = m_transform.state.screenPos;
-    glm::vec2 dim = m_dim + glm::vec2(m_extrudeScale * 2.f * _zoomFract);
+    glm::vec2 dim = m_dim + glm::vec2(m_extrudeScale * 2.f); // * _zoomFract);
 
     if (m_occludedLastFrame) { dim += 2; }
 
     // FIXME: Only for testing
     if (state() == State::dead) { dim -= 4; }
 
-    m_obb = OBB({sp.x + halfSize.x, sp.y - halfSize.y},
-                m_transform.state.rotation, dim.x, dim.y);
+    auto obb = OBB({sp.x + halfSize.x, sp.y - halfSize.y},
+                   m_transform.state.rotation, dim.x, dim.y);
+
+    _obbs.push_back(obb);
+
+    return range;
 }
 
-void SpriteLabel::pushTransform() {
+void SpriteLabel::pushTransform(ScreenTransform& _transform) {
 
     if (!visibleState()) { return; }
 
