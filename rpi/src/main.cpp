@@ -29,6 +29,8 @@
 struct timeval tv;
 unsigned long long timePrev, timeStart;
 
+Tangram::Map* map = nullptr;
+
 static bool bUpdate = true;
 
 //==============================================================================
@@ -44,9 +46,9 @@ int main(int argc, char **argv){
     curl_global_init(CURL_GLOBAL_DEFAULT);
 
     // Set background color and clear buffers
-    Tangram::initialize("scene.yaml");
-    Tangram::setupGL();
-    Tangram::resize(getWindowWidth(), getWindowHeight());
+    map = new Tangram::Map("scene.yaml");
+    map->setupGL();
+    map->resize(getWindowWidth(), getWindowHeight());
 
     setup();
 
@@ -83,11 +85,11 @@ void newFrame() {
 
     //logMsg("New frame (delta %d msec)\n",delta);
 
-    Tangram::update(delta);
+    map->update(delta);
     timePrev = timeNow;
 
     // Render
-    Tangram::render();
+    map->render();
 
     renderGL();
 }
@@ -97,22 +99,22 @@ void newFrame() {
 void onKeyPress(int _key) {
     switch (_key) {
         case KEY_ZOOM_IN:
-            Tangram::handlePinchGesture(0.0,0.0,0.5,0.0);
+            map->handlePinchGesture(0.0,0.0,0.5,0.0);
             break;
         case KEY_ZOOM_OUT:
-            Tangram::handlePinchGesture(0.0,0.0,2.0,0.0);
+            map->handlePinchGesture(0.0,0.0,2.0,0.0);
             break;
         case KEY_UP:
-            Tangram::handlePanGesture(0.0,0.0,0.0,100.0);
+            map->handlePanGesture(0.0,0.0,0.0,100.0);
             break;
         case KEY_DOWN:
-            Tangram::handlePanGesture(0.0,0.0,0.0,-100.0);
+            map->handlePanGesture(0.0,0.0,0.0,-100.0);
             break;
         case KEY_LEFT:
-            Tangram::handlePanGesture(0.0,0.0,100.0,0.0);
+            map->handlePanGesture(0.0,0.0,100.0,0.0);
             break;
         case KEY_RIGHT:
-            Tangram::handlePanGesture(0.0,0.0,-100.0,0.0);
+            map->handlePanGesture(0.0,0.0,-100.0,0.0);
             break;
         case KEY_ESC:
             bUpdate = false;
@@ -134,10 +136,7 @@ void onMouseClick(float _x, float _y, int _button) {
 void onMouseDrag(float _x, float _y, int _button) {
     if( _button == 1 ){
 
-        Tangram::handlePanGesture(  _x-getMouseVelX()*1.0,
-                                    _y+getMouseVelY()*1.0,
-                                    _x,
-                                    _y);
+        map->handlePanGesture(_x - getMouseVelX(), _y + getMouseVelY(), _x, _y);
 
     } else if( _button == 2 ){
         if ( getKeyPressed() == 'r') {
@@ -146,11 +145,11 @@ void onMouseDrag(float _x, float _y, int _button) {
             if( _x < getWindowWidth()/2.0 ) {
                 scale *= -1.0;
             }
-            Tangram::handleRotateGesture(getWindowWidth()/2.0, getWindowHeight()/2.0, rot*scale);
+            map->handleRotateGesture(getWindowWidth()/2.0, getWindowHeight()/2.0, rot*scale);
         } else if ( getKeyPressed() == 't') {
-            Tangram::handleShoveGesture(getMouseVelY()*0.005);
+            map->handleShoveGesture(getMouseVelY()*0.005);
         } else {
-            Tangram::handlePinchGesture(getWindowWidth()/2.0, getWindowHeight()/2.0, 1.0 + getMouseVelY()*0.001, 0.f);
+            map->handlePinchGesture(getWindowWidth()/2.0, getWindowHeight()/2.0, 1.0 + getMouseVelY()*0.001, 0.f);
         }
 
     }
