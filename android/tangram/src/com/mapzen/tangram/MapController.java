@@ -178,7 +178,12 @@ public class MapController implements Renderer {
         // Parse font file desription
         fontFileParser.parse();
 
-        nativeInit(this, assetManager, scenePath);
+        mapPointer = nativeInit(this, assetManager, scenePath);
+    }
+
+    void dispose() {
+        nativeDispose(mapPointer);
+        mapPointer = 0;
     }
 
     static MapController getInstance(GLSurfaceView view, String sceneFilePath) {
@@ -191,7 +196,7 @@ public class MapController implements Renderer {
      */
     public void loadSceneFile(String path) {
         scenePath = path;
-        nativeLoadScene(path);
+        nativeLoadScene(mapPointer, path);
         requestRender();
     }
 
@@ -209,7 +214,7 @@ public class MapController implements Renderer {
      * @param position LngLat of the position to set
      */
     public void setPosition(LngLat position) {
-        nativeSetPosition(position.longitude, position.latitude);
+        nativeSetPosition(mapPointer, position.longitude, position.latitude);
     }
 
     /**
@@ -229,7 +234,7 @@ public class MapController implements Renderer {
      */
     public void setPositionEased(LngLat position, int duration, EaseType ease) {
         float seconds = duration / 1000.f;
-        nativeSetPositionEased(position.longitude, position.latitude, seconds, ease.ordinal());
+        nativeSetPositionEased(mapPointer, position.longitude, position.latitude, seconds, ease.ordinal());
     }
 
     /**
@@ -247,7 +252,7 @@ public class MapController implements Renderer {
      */
     public LngLat getPosition(LngLat out) {
         double[] tmp = { 0, 0 };
-        nativeGetPosition(tmp);
+        nativeGetPosition(mapPointer, tmp);
         return out.set(tmp[0], tmp[1]);
     }
 
@@ -256,7 +261,7 @@ public class MapController implements Renderer {
      * @param zoom Zoom level; lower values show more area
      */
     public void setZoom(float zoom) {
-        nativeSetZoom(zoom);
+        nativeSetZoom(mapPointer, zoom);
     }
 
     /**
@@ -276,7 +281,7 @@ public class MapController implements Renderer {
      */
     public void setZoomEased(float zoom, int duration, EaseType ease) {
         float seconds = duration / 1000.f;
-        nativeSetZoomEased(zoom, seconds, ease.ordinal());
+        nativeSetZoomEased(mapPointer, zoom, seconds, ease.ordinal());
     }
 
     /**
@@ -284,7 +289,7 @@ public class MapController implements Renderer {
      * @return Zoom level; lower values show more area
      */
     public float getZoom() {
-        return nativeGetZoom();
+        return nativeGetZoom(mapPointer);
     }
 
     /**
@@ -292,7 +297,7 @@ public class MapController implements Renderer {
      * @param rotation Counter-clockwise rotation in radians; 0 corresponds to North pointing up
      */
     public void setRotation(float rotation) {
-        nativeSetRotation(rotation);
+        nativeSetRotation(mapPointer, rotation);
     }
 
     /**
@@ -312,7 +317,7 @@ public class MapController implements Renderer {
      */
     public void setRotationEased(float rotation, int duration, EaseType ease) {
         float seconds = duration / 1000.f;
-        nativeSetRotationEased(rotation, seconds, ease.ordinal());
+        nativeSetRotationEased(mapPointer, rotation, seconds, ease.ordinal());
     }
 
     /**
@@ -320,7 +325,7 @@ public class MapController implements Renderer {
      * @return Counter-clockwise rotation in radians; 0 corresponds to North pointing up
      */
     public float getRotation() {
-        return nativeGetRotation();
+        return nativeGetRotation(mapPointer);
     }
 
     /**
@@ -328,7 +333,7 @@ public class MapController implements Renderer {
      * @param tilt Tilt angle in radians; 0 corresponds to straight down
      */
     public void setTilt(float tilt) {
-        nativeSetTilt(tilt);
+        nativeSetTilt(mapPointer, tilt);
     }
 
     /**
@@ -348,7 +353,7 @@ public class MapController implements Renderer {
      */
     public void setTiltEased(float tilt, int duration, EaseType ease) {
         float seconds = duration / 1000.f;
-        nativeSetTiltEased(tilt, seconds, ease.ordinal());
+        nativeSetTiltEased(mapPointer, tilt, seconds, ease.ordinal());
     }
 
     /**
@@ -356,7 +361,7 @@ public class MapController implements Renderer {
      * @return Tilt angle in radians; 0 corresponds to straight down
      */
     public float getTilt() {
-        return nativeGetTilt();
+        return nativeGetTilt(mapPointer);
     }
 
     /**
@@ -364,7 +369,7 @@ public class MapController implements Renderer {
      * @param type A {@code CameraType}
      */
     public void setCameraType(CameraType type) {
-        nativeSetCameraType(type.ordinal());
+        nativeSetCameraType(mapPointer, type.ordinal());
     }
 
     /**
@@ -372,7 +377,7 @@ public class MapController implements Renderer {
      * @return A {@code CameraType}
      */
     public CameraType getCameraType() {
-        return CameraType.values()[nativeGetCameraType()];
+        return CameraType.values()[nativeGetCameraType(mapPointer)];
     }
 
     /**
@@ -383,7 +388,7 @@ public class MapController implements Renderer {
      */
     public LngLat coordinatesAtScreenPosition(double screenX, double screenY) {
         double[] tmp = { screenX, screenY };
-        nativeScreenToWorldCoordinates(tmp);
+        nativeScreenToWorldCoordinates(mapPointer, tmp);
         return new LngLat(tmp[0], tmp[1]);
     }
 
@@ -400,7 +405,7 @@ public class MapController implements Renderer {
         if (mapData != null) {
             return mapData;
         }
-        long pointer = nativeAddDataSource(name);
+        long pointer = nativeAddDataSource(mapPointer, name);
         if (pointer <= 0) {
             throw new RuntimeException("Unable to create new data source");
         }
@@ -415,7 +420,7 @@ public class MapController implements Renderer {
      */
     void removeDataLayer(MapData mapData) {
         clientDataSources.remove(mapData.name);
-        nativeRemoveDataSource(mapData.pointer);
+        nativeRemoveDataSource(mapPointer, mapData.pointer);
     }
 
     /**
@@ -493,7 +498,7 @@ public class MapController implements Renderer {
             @Override
             public boolean onPan(float startX, float startY, float endX, float endY) {
                 if (responder == null || !responder.onPan(startX, startY, endX, endY)) {
-                    nativeHandlePanGesture(startX, startY, endX, endY);
+                    nativeHandlePanGesture(mapPointer, startX, startY, endX, endY);
                 }
                 return true;
             }
@@ -501,7 +506,7 @@ public class MapController implements Renderer {
             @Override
             public boolean onFling(float posX, float posY, float velocityX, float velocityY) {
                 if (responder == null || !responder.onFling(posX, posY, velocityX, velocityY)) {
-                    nativeHandleFlingGesture(posX, posY, velocityX, velocityY);
+                    nativeHandleFlingGesture(mapPointer, posX, posY, velocityX, velocityY);
                 }
                 return true;
             }
@@ -517,7 +522,7 @@ public class MapController implements Renderer {
             @Override
             public boolean onRotate(float x, float y, float rotation) {
                 if (responder == null || !responder.onRotate(x, y, rotation)) {
-                    nativeHandleRotateGesture(x, y, rotation);
+                    nativeHandleRotateGesture(mapPointer, x, y, rotation);
                 }
                 return true;
             }
@@ -533,7 +538,7 @@ public class MapController implements Renderer {
             @Override
             public boolean onScale(float x, float y, float scale, float velocity) {
                 if (responder == null || !responder.onScale(x, y, scale, velocity)) {
-                    nativeHandlePinchGesture(x, y, scale, velocity);
+                    nativeHandlePinchGesture(mapPointer, x, y, scale, velocity);
                 }
                 return true;
             }
@@ -549,7 +554,7 @@ public class MapController implements Renderer {
             @Override
             public boolean onShove(float distance) {
                 if (responder == null || !responder.onShove(distance)) {
-                    nativeHandleShoveGesture(distance);
+                    nativeHandleShoveGesture(mapPointer, distance);
                 }
                 return true;
             }
@@ -592,7 +597,7 @@ public class MapController implements Renderer {
      */
     public void pickFeature(float posX, float posY) {
         if (featurePickListener != null) {
-            nativePickFeature(posX, posY, featurePickListener);
+            nativePickFeature(mapPointer, posX, posY, featurePickListener);
         }
     }
 
@@ -625,14 +630,14 @@ public class MapController implements Renderer {
      * @param value A YAML valid string (example "{ property: true }" or "true")
      */
     public void queueSceneUpdate(String componentPath, String value) {
-        nativeQueueSceneUpdate(componentPath, value);
+        nativeQueueSceneUpdate(mapPointer, componentPath, value);
     }
 
     /**
      * Apply updates queued by queueSceneUpdate; this empties the current queue of updates
      */
     public void applySceneUpdates() {
-        nativeApplySceneUpdates();
+        nativeApplySceneUpdates(mapPointer);
     }
 
     /**
@@ -641,7 +646,27 @@ public class MapController implements Renderer {
      * @param use Whether to use a cached OpenGL state; false by default
      */
     public void useCachedGlState(boolean use) {
-        nativeUseCachedGlState(use);
+        nativeUseCachedGlState(mapPointer, use);
+    }
+
+
+    // Package private methods
+    // =======================
+
+    void removeDataSource(long sourcePtr) {
+        nativeRemoveDataSource(mapPointer, sourcePtr);
+    }
+
+    void clearDataSource(long sourcePtr) {
+        nativeClearDataSource(mapPointer, sourcePtr);
+    }
+
+    void addFeature(long sourcePtr, double[] coordinates, int[] rings, String[] properties) {
+        nativeAddFeature(mapPointer, sourcePtr, coordinates, rings, properties);
+    }
+
+    void addGeoJson(long sourcePtr, String geoJson) {
+        nativeAddGeoJson(mapPointer, sourcePtr, geoJson);
     }
 
     // Native methods
@@ -651,48 +676,49 @@ public class MapController implements Renderer {
         System.loadLibrary("tangram");
     }
 
-    private synchronized native void nativeInit(MapController instance, AssetManager assetManager, String stylePath);
-    private synchronized native void nativeLoadScene(String path);
-    private synchronized native void nativeSetupGL();
-    private synchronized native void nativeResize(int width, int height);
-    private synchronized native boolean nativeUpdate(float dt);
-    private synchronized native void nativeRender();
-    private synchronized native void nativeSetPosition(double lon, double lat);
-    private synchronized native void nativeSetPositionEased(double lon, double lat, float seconds, int ease);
-    private synchronized native void nativeGetPosition(double[] lonLatOut);
-    private synchronized native void nativeSetZoom(float zoom);
-    private synchronized native void nativeSetZoomEased(float zoom, float seconds, int ease);
-    private synchronized native float nativeGetZoom();
-    private synchronized native void nativeSetRotation(float radians);
-    private synchronized native void nativeSetRotationEased(float radians, float seconds, int ease);
-    private synchronized native float nativeGetRotation();
-    private synchronized native void nativeSetTilt(float radians);
-    private synchronized native void nativeSetTiltEased(float radians, float seconds, int ease);
-    private synchronized native float nativeGetTilt();
-    private synchronized native void nativeScreenToWorldCoordinates(double[] screenCoords);
-    private synchronized native void nativeSetPixelScale(float scale);
-    private synchronized native void nativeSetCameraType(int type);
-    private synchronized native int nativeGetCameraType();
-    private synchronized native void nativeHandleTapGesture(float posX, float posY);
-    private synchronized native void nativeHandleDoubleTapGesture(float posX, float posY);
-    private synchronized native void nativeHandlePanGesture(float startX, float startY, float endX, float endY);
-    private synchronized native void nativeHandleFlingGesture(float posX, float posY, float velocityX, float velocityY);
-    private synchronized native void nativeHandlePinchGesture(float posX, float posY, float scale, float velocity);
-    private synchronized native void nativeHandleRotateGesture(float posX, float posY, float rotation);
-    private synchronized native void nativeHandleShoveGesture(float distance);
-    private synchronized native void nativeQueueSceneUpdate(String componentPath, String value);
-    private synchronized native void nativeApplySceneUpdates();
-    private synchronized native void nativePickFeature(float posX, float posY, FeaturePickListener listener);
-    private synchronized native void nativeUseCachedGlState(boolean use);
+    private synchronized native long nativeInit(MapController instance, AssetManager assetManager, String stylePath);
+    private synchronized native long nativeDispose(long mapPtr);
+    private synchronized native void nativeLoadScene(long mapPtr, String path);
+    private synchronized native void nativeSetupGL(long mapPtr);
+    private synchronized native void nativeResize(long mapPtr, int width, int height);
+    private synchronized native boolean nativeUpdate(long mapPtr, float dt);
+    private synchronized native void nativeRender(long mapPtr);
+    private synchronized native void nativeSetPosition(long mapPtr, double lon, double lat);
+    private synchronized native void nativeSetPositionEased(long mapPtr, double lon, double lat, float seconds, int ease);
+    private synchronized native void nativeGetPosition(long mapPtr, double[] lonLatOut);
+    private synchronized native void nativeSetZoom(long mapPtr, float zoom);
+    private synchronized native void nativeSetZoomEased(long mapPtr, float zoom, float seconds, int ease);
+    private synchronized native float nativeGetZoom(long mapPtr);
+    private synchronized native void nativeSetRotation(long mapPtr, float radians);
+    private synchronized native void nativeSetRotationEased(long mapPtr, float radians, float seconds, int ease);
+    private synchronized native float nativeGetRotation(long mapPtr);
+    private synchronized native void nativeSetTilt(long mapPtr, float radians);
+    private synchronized native void nativeSetTiltEased(long mapPtr, float radians, float seconds, int ease);
+    private synchronized native float nativeGetTilt(long mapPtr);
+    private synchronized native void nativeScreenToWorldCoordinates(long mapPtr, double[] screenCoords);
+    private synchronized native void nativeSetPixelScale(long mapPtr, float scale);
+    private synchronized native void nativeSetCameraType(long mapPtr, int type);
+    private synchronized native int nativeGetCameraType(long mapPtr);
+    private synchronized native void nativeHandleTapGesture(long mapPtr, float posX, float posY);
+    private synchronized native void nativeHandleDoubleTapGesture(long mapPtr, float posX, float posY);
+    private synchronized native void nativeHandlePanGesture(long mapPtr, float startX, float startY, float endX, float endY);
+    private synchronized native void nativeHandleFlingGesture(long mapPtr, float posX, float posY, float velocityX, float velocityY);
+    private synchronized native void nativeHandlePinchGesture(long mapPtr, float posX, float posY, float scale, float velocity);
+    private synchronized native void nativeHandleRotateGesture(long mapPtr, float posX, float posY, float rotation);
+    private synchronized native void nativeHandleShoveGesture(long mapPtr, float distance);
+    private synchronized native void nativeQueueSceneUpdate(long mapPtr, String componentPath, String value);
+    private synchronized native void nativeApplySceneUpdates(long mapPtr);
+    private synchronized native void nativePickFeature(long mapPtr, float posX, float posY, FeaturePickListener listener);
+    private synchronized native void nativeUseCachedGlState(long mapPtr, boolean use);
 
     private native void nativeOnUrlSuccess(byte[] rawDataBytes, long callbackPtr);
     private native void nativeOnUrlFailure(long callbackPtr);
 
-    synchronized native long nativeAddDataSource(String name);
-    synchronized native void nativeRemoveDataSource(long pointer);
-    synchronized native void nativeClearDataSource(long pointer);
-    synchronized native void nativeAddFeature(long pointer, double[] coordinates, int[] rings, String[] properties);
-    synchronized native void nativeAddGeoJson(long pointer, String geojson);
+    synchronized native long nativeAddDataSource(long mapPtr, String name);
+    synchronized native void nativeRemoveDataSource(long mapPtr, long sourcePtr);
+    synchronized native void nativeClearDataSource(long mapPtr, long sourcePtr);
+    synchronized native void nativeAddFeature(long mapPtr, long sourcePtr, double[] coordinates, int[] rings, String[] properties);
+    synchronized native void nativeAddGeoJson(long mapPtr, long sourcePtr, String geoJson);
 
     native void nativeSetDebugFlag(int flag, boolean on);
 
@@ -700,6 +726,7 @@ public class MapController implements Renderer {
     // ===============
 
     private String scenePath;
+    private long mapPointer;
     private long time = System.nanoTime();
     private GLSurfaceView mapView;
     private AssetManager assetManager;
@@ -725,8 +752,8 @@ public class MapController implements Renderer {
         float delta = (newTime - time) / 1000000000.0f;
         time = newTime;
 
-        boolean viewComplete = nativeUpdate(delta);
-        nativeRender();
+        boolean viewComplete = nativeUpdate(mapPointer, delta);
+        nativeRender(mapPointer);
 
         if (viewComplete && viewCompleteListener != null) {
             viewCompleteListener.onViewComplete();
@@ -741,16 +768,16 @@ public class MapController implements Renderer {
 
     @Override
     public void onSurfaceChanged(GL10 gl, int width, int height) {
-        nativeSetPixelScale(displayMetrics.density);
-        nativeResize(width, height);
+        nativeSetPixelScale(mapPointer, displayMetrics.density);
+        nativeResize(mapPointer, width, height);
     }
 
     @Override
     public void onSurfaceCreated(GL10 gl, EGLConfig config) {
-        nativeInit(this, assetManager, scenePath);
+        // nativeInit(this, assetManager, scenePath);
         // nativeInit() is safe to call twice, this invocation ensures that the jni
         // environment is attached to the rendering thread
-        nativeSetupGL();
+        nativeSetupGL(mapPointer);
     }
 
     // Networking methods
