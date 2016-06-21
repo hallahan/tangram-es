@@ -57,13 +57,7 @@ public class MapView extends FrameLayout {
 
         final Context context = getContext();
 
-        if (getMapTask != null) {
-            getMapTask.cancel(true);
-        }
-
-        if (mapController != null) {
-            mapController.dispose();
-        }
+        disposeMap();
 
         mapController = getMapInstance(sceneFilePath);
 
@@ -99,6 +93,20 @@ public class MapView extends FrameLayout {
 
     }
 
+    protected void disposeMap() {
+
+        if (getMapTask != null) {
+            getMapTask.cancel(true);
+        }
+        getMapTask = null;
+
+        if (mapController != null) {
+            mapController.dispose();
+        }
+        mapController = null;
+
+    }
+
     /**
      * You must call this method from the parent Activity/Fragment's corresponding method.
      */
@@ -125,9 +133,7 @@ public class MapView extends FrameLayout {
      */
     public void onDestroy() {
 
-        if (getMapTask != null) {
-            getMapTask.cancel(true);
-        }
+        disposeMap();
 
     }
 
