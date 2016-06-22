@@ -95,6 +95,14 @@ extern "C" {
         Tangram::setPixelScale(scale);
     }
 
+    JNIEXPORT void JNICALL Java_com_mapzen_tangram_MapController_nativeSetCameraType(JNIEnv* jniEnv, jobject obj, jint type) {
+        Tangram::setCameraType(type);
+    }
+
+    JNIEXPORT jint JNICALL Java_com_mapzen_tangram_MapController_nativeGetCameraType(JNIEnv* jniEnv, jobject obj) {
+        return Tangram::getCameraType();
+    }
+
     JNIEXPORT void JNICALL Java_com_mapzen_tangram_MapController_nativeHandleTapGesture(JNIEnv* jniEnv, jobject obj, jfloat posX, jfloat posY) {
         Tangram::handleTapGesture(posX, posY);
     }
@@ -222,6 +230,10 @@ extern "C" {
 
     JNIEXPORT void JNICALL Java_com_mapzen_tangram_MapController_nativeSetDebugFlag(JNIEnv* jniEnv, jobject obj, jint flag, jboolean on) {
         Tangram::setDebugFlag(static_cast<Tangram::DebugFlags>(flag), on);
+    }
+
+    JNIEXPORT void JNICALL Java_com_mapzen_tangram_MapController_nativeUseCachedGlState(JNIEnv* jniEnv, jobject obj, jboolean use) {
+        Tangram::useCachedGlState(use);
     }
 
     JNIEXPORT void JNICALL Java_com_mapzen_tangram_MapController_nativeQueueSceneUpdate(JNIEnv* jnienv, jobject obj, jstring path, jstring value) {

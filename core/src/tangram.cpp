@@ -3,7 +3,6 @@
 #include "platform.h"
 #include "scene/scene.h"
 #include "scene/sceneLoader.h"
-#include "scene/skybox.h"
 #include "style/material.h"
 #include "style/style.h"
 #include "labels/labels.h"
@@ -41,7 +40,6 @@ std::unique_ptr<TileManager> m_tileManager;
 std::shared_ptr<Scene> m_scene;
 std::shared_ptr<View> m_view;
 std::unique_ptr<Labels> m_labels;
-std::unique_ptr<Skybox> m_skybox;
 std::unique_ptr<InputHandler> m_inputHandler;
 
 std::array<Ease, 4> m_eases;
@@ -57,6 +55,8 @@ void clearEase(EaseField _f) {
 
 static float g_time = 0.0;
 static std::bitset<8> g_flags = 0;
+static bool g_cacheGlState = false;
+
 
 void initialize(const char* _scenePath) {
 
@@ -229,10 +229,14 @@ bool update(float _dt) {
 
     FrameInfo::endUpdate();
 
-    if (m_view->changedOnLastUpdate() ||
-        m_tileManager->hasTileSetChanged() ||
-        m_tileManager->hasLoadingTiles() ||
-        m_labels->needUpdate()) { viewComplete = false; }
+    bool viewChanged = m_view->changedOnLastUpdate();
+    bool tilesChanged = m_tileManager->hasTileSetChanged();
+    bool tilesLoading = m_tileManager->hasLoadingTiles();
+    bool labelsNeedUpdate = m_labels->needUpdate();
+
+    if (viewChanged || tilesChanged || tilesLoading || labelsNeedUpdate) {
+        viewComplete = false;
+    }
 
     // Request for render if labels are in fading in/out states
     if (m_labels->needUpdate()) { requestRender(); }
@@ -241,8 +245,12 @@ bool update(float _dt) {
 }
 
 void render() {
-
     FrameInfo::beginFrame();
+
+    // Invalidate render states for new frame
+    if (!g_cacheGlState) {
+        RenderState::invalidate();
+    }
 
     // Set up openGL for new frame
     RenderState::depthWrite(GL_TRUE);
@@ -423,6 +431,19 @@ void setPixelScale(float _pixelsPerPoint) {
     }
 }
 
+void setCameraType(int _type) {
+
+    m_view->setCameraType(static_cast<CameraType>(_type));
+    requestRender();
+
+}
+
+int getCameraType() {
+
+    return static_cast<int>(m_view->cameraType());
+
+}
+
 void addDataSource(std::shared_ptr<DataSource> _source) {
     if (!m_tileManager) { return; }
     std::lock_guard<std::mutex> lock(m_tilesMutex);
@@ -524,6 +545,10 @@ const std::vector<TouchItem>& pickFeaturesAt(float _x, float _y) {
                                         _x, _y);
 }
 
+void useCachedGlState(bool _useCache) {
+    g_cacheGlState = _useCache;
+}
+
 void setupGL() {
 
     LOG("setup GL");
@@ -535,7 +560,8 @@ void setupGL() {
     // Reconfigure the render states. Increases context 'generation'.
     // The OpenGL context has been destroyed since the last time resources were
     // created, so we invalidate all data that depends on OpenGL object handles.
-    RenderState::configure();
+    RenderState::invalidate();
+    RenderState::increaseGeneration();
 
     // Set default primitive render color
     Primitives::setColor(0xffffff);

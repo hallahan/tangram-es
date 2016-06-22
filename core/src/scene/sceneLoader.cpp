@@ -155,9 +155,9 @@ bool SceneLoader::applyConfig(Node& config, Scene& _scene) {
     _scene.styles().emplace_back(new PolygonStyle("polygons"));
     _scene.styles().emplace_back(new PolylineStyle("lines"));
     _scene.styles().emplace_back(new DebugTextStyle("debugtext", true));
-    _scene.styles().emplace_back(new TextStyle("text", true));
+    _scene.styles().emplace_back(new TextStyle("text", _scene.fontContext(), true));
     _scene.styles().emplace_back(new DebugStyle("debug"));
-    _scene.styles().emplace_back(new PointStyle("points"));
+    _scene.styles().emplace_back(new PointStyle("points", _scene.fontContext()));
     _scene.styles().emplace_back(new RasterStyle("raster"));
 
     if (Node globals = config["global"]) {
@@ -608,6 +608,26 @@ void SceneLoader::loadStyleProps(Style& style, Node styleNode, Scene& scene) {
         style.setTexCoordsGeneration(texcoordsNode.as<bool>());
     }
 
+    if (Node dashNode = styleNode["dash"]) {
+        if (auto polylineStyle = dynamic_cast<PolylineStyle*>(&style)) {
+            if (dashNode.IsSequence()) {
+                std::vector<int> dashValues;
+                for (auto dashValue : dashNode) {
+                    dashValues.push_back(dashValue.as<int>());
+                }
+                polylineStyle->setDashArray(dashValues);
+                polylineStyle->setTexCoordsGeneration(true);
+            }
+        }
+    }
+
+    if (Node dashBackgroundColor = styleNode["dash_background_color"]) {
+        if (auto polylineStyle = dynamic_cast<PolylineStyle*>(&style)) {
+            glm::vec4 backgroundColor = getColorAsVec4(dashBackgroundColor);
+            polylineStyle->setDashBackgroundColor(backgroundColor);
+        }
+    }
+
     if (Node shadersNode = styleNode["shaders"]) {
         loadShaderConfig(shadersNode, style, scene);
     }
@@ -625,6 +645,7 @@ void SceneLoader::loadStyleProps(Style& style, Node styleNode, Scene& scene) {
         else { LOGW("Unrecognized lighting type '%s'", lighting.c_str()); }
     }
 
+    // TODO: Handle inlined texture with URL
     if (Node textureNode = styleNode["texture"]) {
         if (auto pointStyle = dynamic_cast<PointStyle*>(&style)) {
             const std::string& textureName = textureNode.Scalar();
@@ -633,13 +654,19 @@ void SceneLoader::loadStyleProps(Style& style, Node styleNode, Scene& scene) {
             if (atlasIt != atlases.end()) {
                 pointStyle->setSpriteAtlas(atlasIt->second);
             } else {
-                auto textures = scene.textures();
-                auto texIt = textures.find(textureName);
-                if (texIt != textures.end()) {
-                    pointStyle->setTexture(texIt->second);
+                auto texture = scene.getTexture(textureName);
+                if (texture) {
+                    pointStyle->setTexture(texture);
                 } else {
                     LOGW("Undefined texture name %s", textureName.c_str());
                 }
+            }
+        } else if (auto polylineStyle = dynamic_cast<PolylineStyle*>(&style)) {
+            const std::string& textureName = textureNode.Scalar();
+            auto texture = scene.getTexture(textureName);
+            if (texture) {
+                polylineStyle->setTexture(texture);
+                polylineStyle->setTexCoordsGeneration(true);
             }
         }
     }
@@ -673,9 +700,9 @@ bool SceneLoader::loadStyle(const std::string& name, Node config, Scene& scene) 
     } else if (baseStyle == "lines") {
         style = std::make_unique<PolylineStyle>(name);
     } else if (baseStyle == "text") {
-        style = std::make_unique<TextStyle>(name, true);
+        style = std::make_unique<TextStyle>(name, scene.fontContext(), true);
     } else if (baseStyle == "points") {
-        style = std::make_unique<PointStyle>(name);
+        style = std::make_unique<PointStyle>(name, scene.fontContext());
     } else if (baseStyle == "raster") {
         style = std::make_unique<RasterStyle>(name);
     } else {
@@ -1251,8 +1278,7 @@ bool SceneLoader::parseStyleUniforms(const Node& value, Scene& scene, StyleUnifo
         } else {
             const std::string& strVal = value.Scalar();
             styleUniform.type = "sampler2D";
-            std::shared_ptr<Texture> texture;
-            scene.texture(strVal, texture);
+            std::shared_ptr<Texture> texture = scene.getTexture(strVal);
 
             if (!texture && !loadTexture(strVal, scene)) {
                 LOGW("Can't load texture with name %s", strVal.c_str());
@@ -1297,8 +1323,7 @@ bool SceneLoader::parseStyleUniforms(const Node& value, Scene& scene, StyleUnifo
             for (const auto& strVal : value) {
                 const std::string& textureName = strVal.Scalar();
                 textureArrayUniform.names.push_back(textureName);
-                std::shared_ptr<Texture> texture;
-                scene.texture(textureName, texture);
+                std::shared_ptr<Texture> texture = scene.getTexture(textureName);
 
                 if (!texture && !loadTexture(textureName, scene)) {
                     LOGW("Can't load texture with name %s", textureName.c_str());
