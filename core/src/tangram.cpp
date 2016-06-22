@@ -38,7 +38,6 @@ void Map::clearEase(EaseField _f) {
     m_eases[static_cast<size_t>(_f)] = none;
 }
 
-static float g_time = 0.0;
 static std::bitset<8> g_flags = 0;
 std::mutex g_tasksMutex;
 std::queue<std::function<void()>> g_tasks;
@@ -157,7 +156,7 @@ bool Map::update(float _dt) {
 
     FrameInfo::beginUpdate();
 
-    g_time += _dt;
+    m_scene->updateTime(_dt);
 
     bool viewComplete = true;
 
@@ -544,11 +543,6 @@ void runOnMainLoop(std::function<void()> _task) {
     // that they are created on, then pass that ID into this function when they are
     // disposed; this ensures that multiple tangram instances on multiple threads can all
     // safely dispose their GL resources on the same thread that created them.
-}
-
-float frameTime() {
-    // FIXME: g_time should be a member of each Map instance
-    return g_time;
 }
 
 void setDebugFlag(DebugFlags _flag, bool _on) {
