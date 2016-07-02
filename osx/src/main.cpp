@@ -10,7 +10,7 @@
 // Forward declaration
 void init_main_window(bool recreate);
 
-std::string sceneFile = "bubble-wrap/bubble-wrap.yaml";
+std::string sceneFile = "nick.yaml";
 
 GLFWwindow* main_window = nullptr;
 int width = 800;
@@ -228,7 +228,7 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
                 Tangram::applySceneUpdates();
                 break;
             case GLFW_KEY_G:
-                static bool geoJSON = false;
+                static bool geoJSON = true;
                 if (!geoJSON) {
                     LOGS("Switching to GeoJSON data source");
                     Tangram::queueSceneUpdate("sources.osm.type", "GeoJSON");

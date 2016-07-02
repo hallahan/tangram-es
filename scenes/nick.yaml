@@ -1,0 +1,43 @@
+﻿sources:
+    mapzen:
+        type: GeoJSON
+        url: https://vector.mapzen.com/osm/all/{z}/{x}/{y}.json
+    osmApi:
+        type: OSM_XML
+        url: http://www.openstreetmap.org/api/0.6/map?bbox={l},{b},{r},{t}
+layers:
+    earth:
+        data: { source: mapzen }
+        draw:
+            polygons:
+                order: 0
+                color: [0.965, 1.000, 0.950]
+    roads:
+        data: { source: mapzen }
+        draw:
+            lines: 
+                order: 5
+                color: [0.367, 0.616, 0.349]
+                width: 2px
+    water:
+        data: { source: mapzen }
+        draw:
+            polygons:
+                order: 1
+                color: lightblue
+            lines: 
+                order: 3
+                color: lightblue
+                width: 1px
+    buildings:
+        data: { source:  mapzen}
+        draw:
+            polygons:
+                order: 6
+                color: [0.860, 0.526, 0.592]
+    building:
+        data: { source:  osmApi}
+        draw:
+            polygons:
+                order: 6
+                color: [0.373, 0.859, 0.367]
