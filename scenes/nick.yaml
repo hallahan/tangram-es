@@ -31,12 +31,14 @@ layers:
                 width: 1px
     buildings:
         data: { source:  mapzen}
+        filter: { $zoom: { max: 18 } }
         draw:
             polygons:
                 order: 6
                 color: [0.860, 0.526, 0.592]
     building:
         data: { source:  osmApi}
+        filter: { $zoom: { min: 19 } }
         draw:
             polygons:
                 order: 6
