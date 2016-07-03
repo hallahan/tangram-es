@@ -1,4 +1,10 @@
-﻿sources:
+﻿cameras:
+    iso-camera:
+        # Free Way Farm
+        position: [-121.369544, 38.649416, 17]
+        type: isometric
+        active: true
+sources:
     mapzen:
         type: GeoJSON
         url: https://vector.mapzen.com/osm/all/{z}/{x}/{y}.json
