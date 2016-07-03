@@ -18,6 +18,8 @@ std::shared_ptr<TileData> GeoJsonSource::parse(const TileTask& _task,
                                                const MapProjection& _projection) const {
 
     auto& task = static_cast<const DownloadTileTask&>(_task);
+    
+    LOGN("GeoJSON Tile: %s", task.tileId().toString().c_str());
 
     std::shared_ptr<TileData> tileData = std::make_shared<TileData>();
 
