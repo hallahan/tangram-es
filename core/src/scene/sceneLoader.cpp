@@ -797,7 +797,7 @@ void SceneLoader::loadSource(const std::string& name, const Node& source, const 
         }
         sourcePtr = std::shared_ptr<DataSource>(new RasterSource(name, url, maxZoom, options, generateMipmaps));
     } else if (type == "OSM_XML") {
-        sourcePtr = std::shared_ptr<DataSource>(new OsmXmlSource(name, url, maxZoom));
+        sourcePtr = std::shared_ptr<DataSource>(new OsmXmlSource(name, url, maxZoom, _scene));
     } else {
         LOGW("Unrecognized data source type '%s', skipping", type.c_str());
     }
