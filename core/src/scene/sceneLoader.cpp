@@ -8,6 +8,7 @@
 #include "data/mvtSource.h"
 #include "data/topoJsonSource.h"
 #include "data/rasterSource.h"
+#include "data/osmXmlSource.h"
 #include "gl/shaderProgram.h"
 #include "style/material.h"
 #include "style/polygonStyle.h"
@@ -796,7 +797,7 @@ void SceneLoader::loadSource(const std::string& name, const Node& source, const 
         }
         sourcePtr = std::shared_ptr<DataSource>(new RasterSource(name, url, maxZoom, options, generateMipmaps));
     } else if (type == "OSM_XML") {
-        // sourcePtr = std::shared_ptr<DataSource>(new OsmXmlSource(name, url, maxZoom));
+        sourcePtr = std::shared_ptr<DataSource>(new OsmXmlSource(name, url, maxZoom));
     } else {
         LOGW("Unrecognized data source type '%s', skipping", type.c_str());
     }
