@@ -12,6 +12,7 @@ m_dataSet(_dataSet) {
 
 XmlParser& XmlParser::parse(char* _xmlString) {
     try {
+        //LOGN("xmlString: %s", _xmlString);
         m_doc.parse<0>(_xmlString);
         readOsm(m_doc.first_node());
     } catch (...) {

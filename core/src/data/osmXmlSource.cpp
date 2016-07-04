@@ -47,15 +47,22 @@ std::shared_ptr<TileData> OsmXmlSource::parse(const TileTask& _task,
 void OsmXmlSource::constructURL(const TileID& _tileCoord, std::string& _url) const {
     _url.assign(m_urlTemplate);
     BoundingBox tileBounds = m_scene.mapProjection()->TileLonLatBounds(_tileCoord);
+    // Something is funky about what we're getting from TileLonLatBounds,
+    // but this works... (I'm guessing it's thinking in TMS rathar Google Tiles?)
+    double l = tileBounds.min.x;
+    double b = - tileBounds.max.y;
+    double r = tileBounds.max.x;
+    double t = - tileBounds.min.y;
+    
     try {
         size_t lpos = _url.find("{l}");
-        _url.replace(lpos, 3, std::to_string(tileBounds.min.x));
+        _url.replace(lpos, 3, std::to_string(l));
         size_t bpos = _url.find("{b}");
-        _url.replace(bpos, 3, std::to_string(tileBounds.min.y));
+        _url.replace(bpos, 3, std::to_string(b));
         size_t rpos = _url.find("{r}");
-        _url.replace(rpos, 3, std::to_string(tileBounds.max.x));
+        _url.replace(rpos, 3, std::to_string(r));
         size_t tpos = _url.find("{t}");
-        _url.replace(tpos, 3, std::to_string(tileBounds.min.y));
+        _url.replace(tpos, 3, std::to_string(t));
     } catch(...) {
         LOGE("Bad URL template!");
     }
