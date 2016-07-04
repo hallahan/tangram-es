@@ -7,11 +7,8 @@
 #include "tile/tileTask.h"
 #include "util/geoJson.h"
 #include "osm/memoryDataSet.h"
+#include "osm/xmlParser.h"
 #include "platform.h"
-
-#include "rapidxml/rapidxml.hpp"
-
-using namespace rapidxml;
 
 namespace Tangram {
 
@@ -27,11 +24,10 @@ std::shared_ptr<TileData> OsmXmlSource::parse(const TileTask& _task,
     LOGN("OSM XML Tile: %s", task.tileId().toString().c_str());
 
     std::shared_ptr<TileData> tileData = std::make_shared<TileData>();
-
-    xml_document<> doc;
-    xml_node<> * root_node;
     
-    OSM::MemoryDataSet mds;
+    std::shared_ptr<OSM::MemoryDataSet> memoryDataSet = std::make_shared<OSM::MemoryDataSet>();
+    OSM::XmlParser xmlParser(memoryDataSet);
+    xmlParser.parse(task.rawTileData->data());
 
     // Parse data into an XML document
     // const char* error;
