@@ -6,6 +6,7 @@
 #include "tile/tileID.h"
 #include "tile/tileTask.h"
 #include "util/geoJson.h"
+#include "osm/memoryDataSet.h"
 #include "platform.h"
 
 #include "rapidxml/rapidxml.hpp"
@@ -29,6 +30,8 @@ std::shared_ptr<TileData> OsmXmlSource::parse(const TileTask& _task,
 
     xml_document<> doc;
     xml_node<> * root_node;
+    
+    OSM::MemoryDataSet mds;
 
     // Parse data into an XML document
     // const char* error;
