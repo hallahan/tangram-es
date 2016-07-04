@@ -8,6 +8,10 @@
 #include "util/geoJson.h"
 #include "platform.h"
 
+#include "rapidxml/rapidxml.hpp"
+
+using namespace rapidxml;
+
 namespace Tangram {
 
 OsmXmlSource::OsmXmlSource(const std::string& _name, const std::string& _urlTemplate, 
@@ -22,6 +26,20 @@ std::shared_ptr<TileData> OsmXmlSource::parse(const TileTask& _task,
     LOGN("OSM XML Tile: %s", task.tileId().toString().c_str());
 
     std::shared_ptr<TileData> tileData = std::make_shared<TileData>();
+
+    xml_document<> doc;
+    xml_node<> * root_node;
+
+    // Parse data into an XML document
+    // const char* error;
+    // size_t offset;
+    // const char* rawTileData = task.rawTileData->data();
+    // auto document = JsonParseBytes(rawTileData, task.rawTileData->size(), &error, &offset);
+
+    // if (error) {
+    //     LOGE("Json parsing failed on tile [%s]: %s (%u)", task.tileId().toString().c_str(), error, offset);
+    //     return tileData;
+    // }
 
     return tileData;
 

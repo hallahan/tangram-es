@@ -51,6 +51,7 @@ set(CORE_LIBRARIES_INCLUDE_DIRS
     ${PROJECT_SOURCE_DIR}/${INCLUDE_DIR}/stb
     ${PROJECT_SOURCE_DIR}/${INCLUDE_DIR}/pbf
     ${PROJECT_SOURCE_DIR}/${INCLUDE_DIR}/rapidjson
+    ${PROJECT_SOURCE_DIR}/${INCLUDE_DIR}/rapidxml
     ${PROJECT_SOURCE_DIR}/${INCLUDE_DIR}/isect2d/include
     CACHE INTERNAL "core libraries include directories" FORCE)
 
