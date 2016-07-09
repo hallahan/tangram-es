@@ -21,9 +21,9 @@ private:
     void readNode(rapidxml::xml_node<>* _osmElement);
     void readWay(rapidxml::xml_node<>* _osmElement);
     void readRelation(rapidxml::xml_node<>* _osmElement);
-    void readTag(rapidxml::xml_node<>* _osmElement, const Element& _element);
-    void readNd(rapidxml::xml_node<>* _osmElement, const Element& _element);
-    void readMember(rapidxml::xml_node<>* _osmElement, const Element& _element);
+    void readTag(rapidxml::xml_node<>* _osmElement, std::shared_ptr<Element> _element);
+    void readNd(rapidxml::xml_node<>* _osmElement, std::shared_ptr<Element> _element);
+    void readMember(rapidxml::xml_node<>* _osmElement, std::shared_ptr<Element> _element);
 
     std::shared_ptr<MemoryDataSet> m_dataSet;
     rapidxml::xml_document<> m_doc;

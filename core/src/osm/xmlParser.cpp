@@ -109,7 +109,7 @@ void XmlParser::readNode(rapidxml::xml_node<>* _osmElement) {
         visibleStr = attr->value();
     }
 
-    Node n = m_dataSet->addNode(idStr, latStr, lonStr, versionStr, timestampStr,
+    std::shared_ptr<Node> n = m_dataSet->createNode(idStr, latStr, lonStr, versionStr, timestampStr,
                                 changesetStr, uidStr, userStr, actionStr, visibleStr);
     
     // get tags
@@ -166,7 +166,7 @@ void XmlParser::readWay(rapidxml::xml_node<>* _osmElement) {
         userStr = attr->value();
     }
 
-    Way w = m_dataSet->addWay(idStr, versionStr, timestampStr, changesetStr,
+    std::shared_ptr<Way> w = m_dataSet->createWay(idStr, versionStr, timestampStr, changesetStr,
                               uidStr, userStr, actionStr, visibleStr);
 
     // get nds, tags
@@ -187,7 +187,7 @@ void XmlParser::readRelation(rapidxml::xml_node<>* _osmElement) {
 
 }
 
-void XmlParser::readTag(rapidxml::xml_node<>* _osmElement, const Element& _element) {
+void XmlParser::readTag(rapidxml::xml_node<>* _osmElement, std::shared_ptr<Element> _element) {
     xml_attribute<>* kAttr = _osmElement->first_attribute("k");
     xml_attribute<>* vAttr = _osmElement->first_attribute("v");
     if (kAttr && vAttr) {
@@ -195,11 +195,11 @@ void XmlParser::readTag(rapidxml::xml_node<>* _osmElement, const Element& _eleme
     }
 }
 
-void XmlParser::readNd(rapidxml::xml_node<>* _osmElement, const Element& _element) {
+void XmlParser::readNd(rapidxml::xml_node<>* _osmElement, std::shared_ptr<Element> _element) {
 
 }
 
-void XmlParser::readMember(rapidxml::xml_node<>* _osmElement, const Element& _element) {
+void XmlParser::readMember(rapidxml::xml_node<>* _osmElement, std::shared_ptr<Element> _element) {
 
 }
 
