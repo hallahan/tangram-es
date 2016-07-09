@@ -9,4 +9,8 @@ Element(_id, _versionStr, _timestampStr, _changesetStr, _uidStr, _userStr, _acti
     
 }
 
+void Way::addNodeRef(long _refId) {
+    m_nodeRefs.push_back(_refId);
+}
+
 }

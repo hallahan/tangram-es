@@ -40,11 +40,7 @@ m_user(_userStr) {
 }
 
 void Element::addParsedTag(const std::string k, const std::string v) {
-
-}
-
-void Element::addNodeRef(long id) {
-
+    m_tags[k] = v;
 }
 
 }

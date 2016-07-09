@@ -187,19 +187,27 @@ void XmlParser::readRelation(rapidxml::xml_node<>* _osmElement) {
 
 }
 
-void XmlParser::readTag(rapidxml::xml_node<>* _osmElement, std::shared_ptr<Element> _element) {
-    xml_attribute<>* kAttr = _osmElement->first_attribute("k");
-    xml_attribute<>* vAttr = _osmElement->first_attribute("v");
+void XmlParser::readTag(rapidxml::xml_node<>* _xmlElement, std::shared_ptr<Element> _element) {
+    xml_attribute<>* kAttr = _xmlElement->first_attribute("k");
+    xml_attribute<>* vAttr = _xmlElement->first_attribute("v");
     if (kAttr && vAttr) {
-        
+        _element->addParsedTag(kAttr->value(), vAttr->value());
     }
 }
 
-void XmlParser::readNd(rapidxml::xml_node<>* _osmElement, std::shared_ptr<Element> _element) {
-
+void XmlParser::readNd(rapidxml::xml_node<>* _xmlElement, std::shared_ptr<Way> _way) {
+    xml_attribute<>* refAttr = _xmlElement->first_attribute("ref");
+    if (refAttr) {
+        try {
+            long refId = std::stol(std::string(refAttr->value()));
+            _way->addNodeRef(refId);
+        } catch(...) {
+            // TODO LOGE
+        }
+    }
 }
 
-void XmlParser::readMember(rapidxml::xml_node<>* _osmElement, std::shared_ptr<Element> _element) {
+void XmlParser::readMember(rapidxml::xml_node<>* _xmlElement, std::shared_ptr<Relation> _relation) {
 
 }
 

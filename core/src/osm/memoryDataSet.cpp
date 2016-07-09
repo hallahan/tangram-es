@@ -36,7 +36,8 @@ std::shared_ptr<Way> MemoryDataSet::createWay(const std::string& _idStr, const s
 std::shared_ptr<Relation> MemoryDataSet::createRelation(const std::string& _idStr, const std::string& _versionStr,
             const std::string& _timestampStr, const std::string& _changesetStr, const std::string& _uidStr,
             const std::string& _userStr, const std::string& _actionStr, const std::string& _visibleStr) {
-    
+    // TODO
+    return nullptr;
 }
 
 void MemoryDataSet::postProcess() {

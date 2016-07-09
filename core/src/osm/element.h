@@ -15,7 +15,6 @@ public:
                      const std::string& _actionStr, const std::string& _visibleStr);
 
     void addParsedTag(const std::string k, const std::string v);
-    void addNodeRef(long id);
     
 protected:
     long m_id;
