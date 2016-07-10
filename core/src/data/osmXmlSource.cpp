@@ -29,16 +29,20 @@ std::shared_ptr<TileData> OsmXmlSource::parse(const TileTask& _task,
     OSM::XmlParser xmlParser(memoryDataSet);
     xmlParser.parse(task.rawTileData->data());
 
-    // Parse data into an XML document
-    // const char* error;
-    // size_t offset;
-    // const char* rawTileData = task.rawTileData->data();
-    // auto document = JsonParseBytes(rawTileData, task.rawTileData->size(), &error, &offset);
+    BoundingBox tileBounds(_projection.TileBounds(task.tileId()));
+    glm::dvec2 tileOrigin = {tileBounds.min.x, tileBounds.max.y*-1.0};
+    double tileInverseScale = 1.0 / tileBounds.width();
 
-    // if (error) {
-    //     LOGE("Json parsing failed on tile [%s]: %s (%u)", task.tileId().toString().c_str(), error, offset);
-    //     return tileData;
-    // }
+    const auto projFn = [&](glm::dvec2 _lonLat){
+        glm::dvec2 tmp = _projection.LonLatToMeters(_lonLat);
+        return Point {
+            (tmp.x - tileOrigin.x) * tileInverseScale,
+            (tmp.y - tileOrigin.y) * tileInverseScale,
+             0
+        };
+    };
+
+    
 
     return tileData;
 

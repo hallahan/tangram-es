@@ -19,6 +19,7 @@ std::shared_ptr<Node> MemoryDataSet::createNode(const std::string& _idStr, const
                                                         _timestampStr, _changesetStr, _uidStr, 
                                                         _userStr, _actionStr, _visibleStr );
     m_nodes[id] = n;
+    m_wayNodeIds.insert(id);
     return n;
 }
 
@@ -41,7 +42,35 @@ std::shared_ptr<Relation> MemoryDataSet::createRelation(const std::string& _idSt
 }
 
 void MemoryDataSet::postProcess() {
+    // iterate through ways
+    for (auto const& wPair : m_ways) {
+        std::shared_ptr<Way> w = wPair.second;
+        w->linkNodes(m_nodes, m_wayNodeIds);
+        
+        /**
+         * If a way has the same starting node as ending node,
+         * it is a closed way.
+         */
+        if (w->isClosed()) {
+            m_closedWays.push_back(w);
+        } else {
+            m_openWays.push_back(w);
+        }
+    }
     
+}
+
+Tangram::Layer MemoryDataSet::getLayer(const Tangram::GeoJson::Transform& _proj, int32_t _sourceId) {
+    Tangram::Layer layer("osmXml");
+
+    // polygons
+
+    // lines
+
+    // points
+
+
+    return layer;
 }
 
 }

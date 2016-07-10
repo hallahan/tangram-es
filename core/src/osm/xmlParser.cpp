@@ -15,6 +15,7 @@ XmlParser& XmlParser::parse(char* _xmlString) {
         //LOGN("xmlString: %s", _xmlString);
         m_doc.parse<0>(_xmlString);
         readOsm(m_doc.first_node());
+        m_dataSet->postProcess();
     } catch (...) {
         
     }

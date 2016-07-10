@@ -2,11 +2,14 @@
 
 #include <string>
 #include <map>
+#include <set>
+#include <vector>
 
 #include "dataSet.h"
 #include "node.h"
 #include "way.h"
 #include "relation.h"
+#include "util/GeoJson.h"
 
 namespace OSM {
 
@@ -32,10 +35,23 @@ public:
     
     void postProcess();
 
+    std::vector<std::shared_ptr<Way>> closedWays() { return m_closedWays; }
+    std::vector<std::shared_ptr<Way>> openWays() { return m_openWays; }
+    std::vector<std::shared_ptr<Node>> standaloneNodes() { return m_standaloneNodes; }
+    
+    Tangram::Layer getLayer(const Tangram::GeoJson::Transform& _proj, int32_t _sourceId);
+
 private:
     std::map<long, std::shared_ptr<Node>> m_nodes;
     std::map<long, std::shared_ptr<Way>> m_ways;
     std::map<long, std::shared_ptr<Relation>> m_relations;
+
+    // used to check for standalone nodes
+    std::set<long> m_wayNodeIds;
+
+    std::vector<std::shared_ptr<Way>> m_closedWays;
+    std::vector<std::shared_ptr<Way>> m_openWays;
+    std::vector<std::shared_ptr<Node>> m_standaloneNodes;
 
 };
 
