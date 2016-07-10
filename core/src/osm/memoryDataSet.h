@@ -35,10 +35,10 @@ public:
     
     void postProcess();
 
-    std::vector<std::shared_ptr<Way>> closedWays() { return m_closedWays; }
-    std::vector<std::shared_ptr<Way>> openWays() { return m_openWays; }
-    std::vector<std::shared_ptr<Node>> standaloneNodes() { return m_standaloneNodes; }
-    
+    std::vector<std::shared_ptr<Way>>& closedWays() { return m_closedWays; }
+    std::vector<std::shared_ptr<Way>>& openWays() { return m_openWays; }
+    std::vector<std::shared_ptr<Node>>& standaloneNodes() { return m_standaloneNodes; }
+
     Tangram::Layer getLayer(const Tangram::GeoJson::Transform& _proj, int32_t _sourceId);
 
 private:
