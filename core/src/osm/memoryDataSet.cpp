@@ -90,7 +90,7 @@ Tangram::Feature MemoryDataSet::getPolygonFeature(const Way& _closedWay, const T
     feature.props = getProperties(_closedWay.tags(), _sourceId);
     
     // Copy geometry into tile data
-    
+    feature.polygons.push_back(getPolygon(_closedWay.nodes(), _proj));
     
     return feature;
 }
@@ -98,31 +98,47 @@ Tangram::Feature MemoryDataSet::getPolygonFeature(const Way& _closedWay, const T
 Tangram::Feature MemoryDataSet::getLineFeature(const Way& _openWay, const Transform& _proj, int32_t _sourceId) {
     Tangram::Feature feature;
 
+    // Copy properties into tile data
+    feature.props = getProperties(_openWay.tags(), _sourceId);
+    
+    // Copy geometry into tile data
+    feature.lines.push_back(getLine(_openWay.nodes(), _proj));
+    
     return feature;
 }
 
 Tangram::Feature MemoryDataSet::getPointFeature(const Node& _standaloneNode, const Transform& _proj, int32_t _sourceId) {
     Tangram::Feature feature;
+    
+    // Copy properties into tile data
+    feature.props = getProperties(_standaloneNode.tags(), _sourceId);
+    
+    // Copy geometry into tile data
+    feature.points.push_back(getPoint(_standaloneNode, _proj));
 
     return feature;
 }
 
-Tangram::Polygon MemoryDataSet::getPolygon(const Way&, const Transform& _proj) {
+Tangram::Polygon MemoryDataSet::getPolygon(const std::vector<std::shared_ptr<Node>>& _nodes , const Transform& _proj) {
     Tangram::Polygon polygon;
 
+    polygon.push_back(getLine(_nodes, _proj));
+    
     return polygon;
 }
 
-Tangram::Line MemoryDataSet::getLine(const Way&, const Transform& _proj) {
+Tangram::Line MemoryDataSet::getLine(const std::vector<std::shared_ptr<Node>>& _nodes , const Transform& _proj) {
     Tangram::Line line;
+
+    for (const auto& n : _nodes) {
+        line.push_back(getPoint(*n, _proj));
+    }
 
     return line;
 }
 
-Tangram::Point MemoryDataSet::getPoint(const Node&, const Transform& _proj) {
-    Tangram::Point point;
-
-    return point;
+Tangram::Point MemoryDataSet::getPoint(const Node& _node, const Transform& _proj) {
+    return _proj(_node.lonLat());
 }
 
 Tangram::Properties MemoryDataSet::getProperties(const Tags& _tags, int32_t _sourceId) {

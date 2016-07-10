@@ -18,6 +18,7 @@ public:
     void addNodeRef(long _refId);
     size_t linkNodes(const std::map<long, std::shared_ptr<Node>>& _nodes, const std::set<long>& _wayNodeIds);
     bool isClosed() { return m_isClosed; }
+    const std::vector<std::shared_ptr<Node>>& nodes() const { return m_linkedNodes; }
 
 private:
     void checkIfClosed();

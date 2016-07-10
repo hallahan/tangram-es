@@ -42,9 +42,9 @@ public:
      */
     void postProcess();
 
-    std::vector<std::shared_ptr<Way>>& closedWays() { return m_closedWays; }
-    std::vector<std::shared_ptr<Way>>& openWays() { return m_openWays; }
-    std::vector<std::shared_ptr<Node>>& standaloneNodes() { return m_standaloneNodes; }
+    const std::vector<std::shared_ptr<Way>>& closedWays() const { return m_closedWays; }
+    const std::vector<std::shared_ptr<Way>>& openWays() const { return m_openWays; }
+    const std::vector<std::shared_ptr<Node>>& standaloneNodes() const { return m_standaloneNodes; }
 
     Tangram::Layer getLayer(const Transform& _proj, int32_t _sourceId);
 
@@ -56,9 +56,9 @@ private:
     Tangram::Feature getPolygonFeature(const Way& _closedWay, const Transform& _proj, int32_t _sourceId);
     Tangram::Feature getLineFeature(const Way& _openWay, const Transform& _proj, int32_t _sourceId);
     Tangram::Feature getPointFeature(const Node& _standaloneNode, const Transform& _proj, int32_t _sourceId);
-    Tangram::Polygon getPolygon(const Way&, const Transform& _proj);
-    Tangram::Line getLine(const Way&, const Transform& _proj);
-    Tangram::Point getPoint(const Node&, const Transform& _proj);
+    Tangram::Polygon getPolygon(const std::vector<std::shared_ptr<Node>>& _nodes, const Transform& _proj);
+    Tangram::Line getLine(const std::vector<std::shared_ptr<Node>>& _nodes, const Transform& _proj);
+    Tangram::Point getPoint(const Node& _node, const Transform& _proj);
     Tangram::Properties getProperties(const Tags& _tags, int32_t _sourceId);
 
     /**
