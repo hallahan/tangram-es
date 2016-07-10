@@ -53,11 +53,13 @@ private:
     /**
      * OSM -> Tangram Layer functions
      */
-    Tangram::Point getPoint(const Transform& _proj);
-    Tangram::Line getLine(const Transform& _proj);
-    Tangram::Polygon getPolygon(const Transform& _proj);
-    Tangram::Properties getProperties(int32_t _sourceId);
-    Tangram::Feature getFeature(const Transform& _proj, int32_t _sourceId);
+    Tangram::Feature getPolygonFeature(const Way& _closedWay, const Transform& _proj, int32_t _sourceId);
+    Tangram::Feature getLineFeature(const Way& _openWay, const Transform& _proj, int32_t _sourceId);
+    Tangram::Feature getPointFeature(const Node& _standaloneNode, const Transform& _proj, int32_t _sourceId);
+    Tangram::Polygon getPolygon(const Way&, const Transform& _proj);
+    Tangram::Line getLine(const Way&, const Transform& _proj);
+    Tangram::Point getPoint(const Node&, const Transform& _proj);
+    Tangram::Properties getProperties(const Tags& _tags, int32_t _sourceId);
 
     /**
      * OSM Topology Containers

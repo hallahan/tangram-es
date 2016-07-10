@@ -1,5 +1,7 @@
 #include "memoryDataSet.h"
 
+#include "data/propertyItem.h"
+
 namespace OSM {
 
 MemoryDataSet::MemoryDataSet() {
@@ -64,33 +66,88 @@ Tangram::Layer MemoryDataSet::getLayer(const Transform& _proj, int32_t _sourceId
     Tangram::Layer layer("osmXml");
 
     // polygons
+    for (const auto& closedWay : m_closedWays) {
+       layer.features.push_back(getPolygonFeature(*closedWay, _proj, _sourceId));    
+    }
 
     // lines
+    for (auto const& openWay : m_openWays) {
+        layer.features.push_back(getLineFeature(*openWay, _proj, _sourceId));    
+    }
 
     // points
-
+    for (auto const& standaloneNode : m_standaloneNodes) {
+        layer.features.push_back(getPointFeature(*standaloneNode, _proj, _sourceId));    
+    }
 
     return layer;
 }
 
-Tangram::Point MemoryDataSet::getPoint(const Transform& _proj) {
+Tangram::Feature MemoryDataSet::getPolygonFeature(const Way& _closedWay, const Transform& _proj, int32_t _sourceId) {
+    Tangram::Feature feature;
+
+    // Copy properties into tile data
+    feature.props = getProperties(_closedWay.tags(), _sourceId);
     
+    // Copy geometry into tile data
+    
+    
+    return feature;
 }
 
-Tangram::Line MemoryDataSet::getLine(const Transform& _proj) {
-    
+Tangram::Feature MemoryDataSet::getLineFeature(const Way& _openWay, const Transform& _proj, int32_t _sourceId) {
+    Tangram::Feature feature;
+
+    return feature;
 }
 
-Tangram::Polygon MemoryDataSet::getPolygon(const Transform& _proj) {
-    
+Tangram::Feature MemoryDataSet::getPointFeature(const Node& _standaloneNode, const Transform& _proj, int32_t _sourceId) {
+    Tangram::Feature feature;
+
+    return feature;
 }
 
-Tangram::Properties MemoryDataSet::getProperties(int32_t _sourceId) {
-    
+Tangram::Polygon MemoryDataSet::getPolygon(const Way&, const Transform& _proj) {
+    Tangram::Polygon polygon;
+
+    return polygon;
 }
 
-Tangram::Feature MemoryDataSet::getFeature(const Transform& _proj, int32_t _sourceId) {
-    
+Tangram::Line MemoryDataSet::getLine(const Way&, const Transform& _proj) {
+    Tangram::Line line;
+
+    return line;
 }
+
+Tangram::Point MemoryDataSet::getPoint(const Node&, const Transform& _proj) {
+    Tangram::Point point;
+
+    return point;
+}
+
+Tangram::Properties MemoryDataSet::getProperties(const Tags& _tags, int32_t _sourceId) {
+   std::vector<Tangram::PropertyItem> items;
+   items.reserve(_tags.size());
+
+    for (const auto& tag : _tags) {
+        // A number value should be a double
+        try {
+            double val = std::stod(tag.second);
+            items.emplace_back(tag.first, val);
+        } 
+        // Not a number, so keep as string.
+        catch (...) {
+            items.emplace_back(tag.first, tag.second);
+        }
+    }
+
+    Tangram::Properties properties;
+    properties.sourceId = _sourceId;
+    properties.setSorted(std::move(items));
+    properties.sort();
+    
+    return properties;
+}
+
 
 }

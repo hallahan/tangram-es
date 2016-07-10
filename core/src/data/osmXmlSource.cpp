@@ -42,7 +42,7 @@ std::shared_ptr<TileData> OsmXmlSource::parse(const TileTask& _task,
         };
     };
 
-    
+    tileData->layers.push_back(memoryDataSet->getLayer(projFn, m_id));
 
     return tileData;
 

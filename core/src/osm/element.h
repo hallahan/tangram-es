@@ -5,6 +5,9 @@
 
 namespace OSM {
 
+// TODO - Consider using Value or PropertyItem
+using Tags = std::map<std::string, std::string>;
+
 class Element {
 
 public:
@@ -16,6 +19,9 @@ public:
 
     void addParsedTag(const std::string k, const std::string v);
     
+    // Read only tag accessor
+    const Tags& tags() const { return m_tags; };
+    
 protected:
     long m_id;
     long m_version;
@@ -26,7 +32,7 @@ protected:
     bool m_modified;
     bool m_visible;
     
-    std::map<std::string, std::string> m_tags;
+    Tags m_tags;
 };
 
 }
