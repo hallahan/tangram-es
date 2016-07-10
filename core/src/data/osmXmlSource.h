@@ -1,5 +1,4 @@
-#ifndef osmXmlSource_h
-#define osmXmlSource_h
+#pragma once
 
 #include "dataSource.h"
 #include "scene/scene.h"
@@ -25,6 +24,3 @@ public:
 };
     
 }
-
-
-#endif /* osmXmlSource_h */
