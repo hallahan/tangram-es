@@ -60,7 +60,7 @@ void MemoryDataSet::postProcess() {
     
 }
 
-Tangram::Layer MemoryDataSet::getLayer(const Tangram::GeoJson::Transform& _proj, int32_t _sourceId) {
+Tangram::Layer MemoryDataSet::getLayer(const Transform& _proj, int32_t _sourceId) {
     Tangram::Layer layer("osmXml");
 
     // polygons
@@ -71,6 +71,26 @@ Tangram::Layer MemoryDataSet::getLayer(const Tangram::GeoJson::Transform& _proj,
 
 
     return layer;
+}
+
+Tangram::Point MemoryDataSet::getPoint(const Transform& _proj) {
+    
+}
+
+Tangram::Line MemoryDataSet::getLine(const Transform& _proj) {
+    
+}
+
+Tangram::Polygon MemoryDataSet::getPolygon(const Transform& _proj) {
+    
+}
+
+Tangram::Properties MemoryDataSet::getProperties(int32_t _sourceId) {
+    
+}
+
+Tangram::Feature MemoryDataSet::getFeature(const Transform& _proj, int32_t _sourceId) {
+    
 }
 
 }
