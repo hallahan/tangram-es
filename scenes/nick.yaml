@@ -35,17 +35,17 @@ layers:
                 order: 3
                 color: lightblue
                 width: 1px
-    buildings:
-        data: { source:  mapzen}
-        filter: { $zoom: { max: 18 } }
-        draw:
-            polygons:
-                order: 6
-                color: [0.860, 0.526, 0.592]
-    building:
+    # buildings:
+    #     data: { source:  mapzen}
+    #     filter: { $zoom: { max: 16 } }
+    #     draw:
+    #         polygons:
+    #             order: 6
+    #             color: [0.860, 0.526, 0.592]
+    osmXml:
         data: { source:  osmApi}
-        filter: { $zoom: { min: 19 } }
+        filter: { $zoom: { min: 15 } }
         draw:
             polygons:
-                order: 6
+                order: 7
                 color: [0.373, 0.859, 0.367]

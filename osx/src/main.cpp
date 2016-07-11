@@ -10,7 +10,7 @@
 // Forward declaration
 void init_main_window(bool recreate);
 
-std::string sceneFile = "nick.yaml";
+std::string sceneFile = "osm-xml-demo.yaml";
 
 GLFWwindow* main_window = nullptr;
 int width = 800;

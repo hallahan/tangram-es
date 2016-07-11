@@ -1,0 +1,131 @@
+cameras:
+    perspective:
+        # Free Way Farm
+        position: [-121.369544, 38.649416, 17]
+        type: perspective
+        vanishing_point: [0, -500]
+
+lights:
+    directional1:
+        type: directional
+        direction: [.1, .5, -1]
+        diffuse: .7
+        ambient: .5
+
+styles:
+    buildings:
+        base: polygons
+        shaders:
+            blocks:
+                color: |
+                    color.rgb *= vec3(min((worldPosition().z*.001 + .5),1.));
+
+sources:
+    mapzen:
+        type: TopoJSON
+        url: https://vector.mapzen.com/osm/all/{z}/{x}/{y}.topojson?api_key=vector-tiles-P6dkVl4
+    osmApi:
+        type: OSM_XML
+        url: http://www.openstreetmap.org/api/0.6/map?bbox={l},{b},{r},{t}
+layers:
+    water:
+        data: { source: mapzen }
+        draw:
+            polygons:
+                order: 2
+                color: '#353535'
+
+    earth:
+        data: { source: mapzen }
+        draw:
+            polygons:
+                order: 0
+                color: '#555'
+
+    landuse:
+        data: { source: mapzen }
+        draw:
+            polygons:
+                order: 1
+                color: '#666'
+
+    roads:
+        data: { source: mapzen }
+        filter: { not: { kind: ferry } }
+        draw:
+            lines:
+                order: 2
+                color: '#777'
+                width: 5
+        labels:
+            filter: { name: true }
+            highway:
+                filter: { kind: highway, $zoom: { min: 7 } }
+                draw:
+                    text:
+                        font:
+                            family: Helvetica
+                            fill: white
+                            size: 12px
+                            weight: bold
+            not_highway:
+                filter: { not: { kind: highway }, $zoom: { min: 13 } }
+                draw:
+                    text:
+                        font:
+                            family: Helvetica
+                            fill: white
+                            size: 11px
+
+    buildings:
+        data: { source: mapzen }
+        filter: { $zoom: { min: 13 } }
+        draw:
+            polygons:
+                order: 10
+                color: '#999'
+    osmXml:
+        data: { source:  osmApi }
+        filter: { $zoom: { min: 16 } }
+        building_yes:
+            filter:
+                building: yes
+            draw:
+                polygons:
+                    order: 11
+                    color: [0.730, 0.557, 0.699]
+        building_commercial:
+            filter:
+                building: commercial
+            draw:
+                polygons:
+                    order: 11
+                    color: [0.499, 0.505, 0.730]
+        building_office:
+            filter:
+                building: office
+            draw:
+                polygons:
+                    order: 11
+                    color: [0.608, 0.626, 0.730]
+        building_house:
+            filter:
+                building: house
+            draw:
+                polygons:
+                    order: 11
+                    color: [0.281, 0.650, 0.482]
+        building_shed:
+            filter:
+                building: shed
+            draw:
+                polygons:
+                    order: 11
+                    color: [0.606, 0.650, 0.532]
+        building_barn:
+            filter:
+                building: barn
+            draw:
+                polygons:
+                    order: 11
+                    color: [0.650, 0.314, 0.339]
