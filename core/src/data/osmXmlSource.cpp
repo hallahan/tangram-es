@@ -21,13 +21,14 @@ std::shared_ptr<TileData> OsmXmlSource::parse(const TileTask& _task,
                                                const MapProjection& _projection) const {
 
     auto& task = static_cast<const DownloadTileTask&>(_task);
-    LOGN("OSM XML Tile: %s", task.tileId().toString().c_str());
 
     std::shared_ptr<TileData> tileData = std::make_shared<TileData>();
     
     std::shared_ptr<OSM::MemoryDataSet> memoryDataSet = std::make_shared<OSM::MemoryDataSet>();
     OSM::XmlParser xmlParser(memoryDataSet);
     xmlParser.parse(task.rawTileData->data());
+
+    LOGN("OSM XML Tile: %s - %zu elements", task.tileId().toString().c_str(), memoryDataSet->size());
 
     BoundingBox tileBounds(_projection.TileBounds(task.tileId()));
     glm::dvec2 tileOrigin = {tileBounds.min.x, tileBounds.max.y*-1.0};

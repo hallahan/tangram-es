@@ -62,6 +62,10 @@ void MemoryDataSet::postProcess() {
     
 }
 
+size_t MemoryDataSet::size() {
+    return m_nodes.size() + m_ways.size() + m_relations.size();
+}
+
 Tangram::Layer MemoryDataSet::getLayer(const Transform& _proj, int32_t _sourceId) {
     Tangram::Layer layer("osmXml");
 

@@ -46,6 +46,8 @@ public:
     const std::vector<std::shared_ptr<Way>>& openWays() const { return m_openWays; }
     const std::vector<std::shared_ptr<Node>>& standaloneNodes() const { return m_standaloneNodes; }
 
+    size_t size();
+
     Tangram::Layer getLayer(const Transform& _proj, int32_t _sourceId);
 
 private:
