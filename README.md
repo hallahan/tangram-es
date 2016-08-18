@@ -2,6 +2,7 @@ tangram-es
 ==========
 
 [![Travis CI Build Status](https://travis-ci.org/tangrams/tangram-es.svg?branch=master)](https://travis-ci.org/tangrams/tangram-es/builds)
+[![Gitter](https://badges.gitter.im/pelias/pelias.svg)](https://gitter.im/tangrams/tangram-chat?utm_source=share-link&utm_medium=link&utm_campaign=share-link)
 
 ![screenshot](images/screenshot.png)
 
@@ -56,8 +57,17 @@ open build/xcode/tangram.xcodeproj
 
 Note that any Xcode configuration change you make to the project won't be preserved when CMake runs again. Build configuration is defined only in the CMakeLists file(s).
 
+### CLion (OS X & Ubuntu Linux) ###
+You can easily run and debug from CLion if you prefer. 
+
+After cloning and updating your git submodules, open CLion and __Import Project from Sources__. Select the root of this repo. Choose __Open Project__. Do not overwrite CMakeLists.txt.
+
+CLion will automatically set everything up, all you have to do is wait a minute for the project to get initialized. Then, select the __tangram__ target and hit run / debug.
+
+![CLion Tangram Target](images/clion-tangram-target.png)
+
 ### Ubuntu Linux ###
-To build on Ubuntu you will need a C++ toolchain with support for C++14. GCC 4.9 (or higher) and Clang 3.4 (or higher) are known to work.
+To build on Ubuntu you will need a C++ toolchain with support for C++14. GCC 5 (or higher) and Clang 3.4 (or higher) are known to work.
 
 You will also need to install development packages for libcurl, x11, and opengl:
 
@@ -125,7 +135,7 @@ Then install to a connected device or emulator. You can (re)install and run the 
 ```
 
 ### Raspberry Pi ###
-To build on Rasberry Pi you will need a C++ toolchain with support for C++14. GCC 4.9 (or higher) is known to work (refer [here](https://solarianprogrammer.com/2015/01/13/raspberry-pi-raspbian-install-gcc-compile-cpp-14-programs/) for instructions on getting GCC 4.9).
+To build on Rasberry Pi you will need a C++ toolchain with support for C++14. GCC 4.9 (or higher) is known to work (refer [here](https://community.thinger.io/t/starting-with-the-raspberry-pi/36) for instructions on getting GCC 4.9).
 
 First, install CMake and libcurl:
 

@@ -24,7 +24,7 @@ public:
         addFeatureCommon(_feature, _rule, false);
     }
 
-    void addFeatureCommon(const Feature& _feature, const DrawRule& _rule, bool _iconText);
+    bool addFeatureCommon(const Feature& _feature, const DrawRule& _rule, bool _iconText);
 
     void setup(const Tile& _tile) override;
 
@@ -38,13 +38,17 @@ public:
     void addLabel(const TextStyle::Parameters& _params, Label::Type _type,
                   Label::Transform _transform);
 
+    void addLineTextLabels(const Feature& _feature, const TextStyle::Parameters& _params);
+
     std::string applyTextTransform(const TextStyle::Parameters& _params, const std::string& _string);
 
     std::string resolveTextSource(const std::string& textSource, const Properties& props) const;
 
     bool checkRule(const DrawRule& _rule) const override { return true; }
 
-    auto& labels() { return m_labels; }
+    std::vector<std::unique_ptr<Label>>* labels() { return &m_labels; }
+
+    void addLayoutItems(LabelCollider& _layout) override;
 
 protected:
 
@@ -60,19 +64,19 @@ protected:
 
     // Attributes of the currently prepared Label
     struct {
-        float width;
-        float height;
+        float width = 0;
+        float height =0 ;
 
         // start position in m_quads
-        size_t quadsStart;
+        size_t quadsStart = 0;
 
-        uint32_t fill;
-        uint32_t stroke;
-        uint8_t fontScale;
+        uint32_t fill = 0;
+        uint32_t stroke = 0;
+        uint8_t fontScale = 0;
+        TextRange textRanges;
     } m_attributes;
 
-    float m_tileSize;
-    bool m_sdf;
+    float m_tileSize = 0;
 };
 
 }

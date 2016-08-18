@@ -6,107 +6,138 @@
 #include "style/material.h"
 #include "style/style.h"
 #include "labels/labels.h"
+#include "text/fontContext.h"
 #include "tile/tileManager.h"
 #include "tile/tile.h"
 #include "gl/error.h"
 #include "gl/shaderProgram.h"
 #include "gl/renderState.h"
 #include "gl/primitives.h"
+#include "util/asyncWorker.h"
 #include "util/inputHandler.h"
 #include "tile/tileCache.h"
+#include "util/fastmap.h"
 #include "view/view.h"
 #include "data/clientGeoJsonSource.h"
 #include "gl.h"
 #include "gl/hardware.h"
 #include "util/ease.h"
+#include "util/jobQueue.h"
 #include "debug/textDisplay.h"
 #include "debug/frameInfo.h"
-#include <memory>
-#include <array>
+
 #include <cmath>
 #include <bitset>
-#include <mutex>
-#include <queue>
 
 namespace Tangram {
 
 const static size_t MAX_WORKERS = 2;
 
-std::mutex m_tilesMutex;
-std::mutex m_tasksMutex;
-std::queue<std::function<void()>> m_tasks;
-std::unique_ptr<TileWorker> m_tileWorker;
-std::unique_ptr<TileManager> m_tileManager;
-std::shared_ptr<Scene> m_scene;
-std::shared_ptr<View> m_view;
-std::unique_ptr<Labels> m_labels;
-std::unique_ptr<InputHandler> m_inputHandler;
-
-std::array<Ease, 4> m_eases;
 enum class EaseField { position, zoom, rotation, tilt };
-void setEase(EaseField _f, Ease _e) {
-    m_eases[static_cast<size_t>(_f)] = _e;
+
+class Map::Impl {
+
+public:
+
+    void setScene(std::shared_ptr<Scene>& _scene);
+
+    void setEase(EaseField _f, Ease _e);
+    void clearEase(EaseField _f);
+
+    void setPositionNow(double _lon, double _lat);
+    void setZoomNow(float _z);
+    void setRotationNow(float _radians);
+    void setTiltNow(float _radians);
+
+    void setPixelScale(float _pixelsPerPoint);
+
+    std::mutex tilesMutex;
+    std::mutex sceneMutex;
+
+    RenderState renderState;
+    JobQueue jobQueue;
+    View view;
+    Labels labels;
+    AsyncWorker asyncWorker;
+    InputHandler inputHandler{view};
+    TileWorker tileWorker{MAX_WORKERS};
+    TileManager tileManager{tileWorker};
+
+    std::vector<SceneUpdate> sceneUpdates;
+    std::array<Ease, 4> eases;
+
+    std::shared_ptr<Scene> scene = std::make_shared<Scene>();
+    std::shared_ptr<Scene> nextScene = nullptr;
+
+    bool cacheGlState;
+
+};
+
+void Map::Impl::setEase(EaseField _f, Ease _e) {
+    eases[static_cast<size_t>(_f)] = _e;
     requestRender();
 }
-void clearEase(EaseField _f) {
+void Map::Impl::clearEase(EaseField _f) {
     static Ease none = {};
-    m_eases[static_cast<size_t>(_f)] = none;
+    eases[static_cast<size_t>(_f)] = none;
 }
 
-static float g_time = 0.0;
 static std::bitset<8> g_flags = 0;
-static bool g_cacheGlState = false;
 
+Map::Map() {
 
-void initialize(const char* _scenePath) {
+    impl.reset(new Impl());
 
-    if (m_scene && m_scene->path() == _scenePath) {
-        LOGD("Specified scene is already initalized.");
-        return;
+}
+
+Map::~Map() {
+    // The unique_ptr to Impl will be automatically destroyed when Map is destroyed.
+    TextDisplay::Instance().deinit();
+    Primitives::deinit();
+}
+
+void Map::Impl::setScene(std::shared_ptr<Scene>& _scene) {
+    {
+        std::lock_guard<std::mutex> lock(sceneMutex);
+        scene = _scene;
     }
 
-    LOG("initialize");
+    scene->setPixelScale(view.pixelScale());
 
-    // Create view
-    m_view = std::make_shared<View>();
+    auto& camera = scene->camera();
+    view.setCameraType(camera.type);
 
-    // Create a scene object
-    m_scene = std::make_shared<Scene>(_scenePath);
+    switch (camera.type) {
+    case CameraType::perspective:
+        view.setVanishingPoint(camera.vanishingPoint.x, camera.vanishingPoint.y);
+        if (camera.fovStops) {
+            view.setFieldOfViewStops(camera.fovStops);
+        } else {
+            view.setFieldOfView(camera.fieldOfView);
+        }
+        break;
+    case CameraType::isometric:
+        view.setObliqueAxis(camera.obliqueAxis.x, camera.obliqueAxis.y);
+        break;
+    case CameraType::flat:
+        break;
+    }
 
-    // Input handler
-    m_inputHandler = std::make_unique<InputHandler>(m_view);
+    if (scene->useScenePosition) {
+        glm::dvec2 projPos = view.getMapProjection().LonLatToMeters(scene->startPosition);
+        view.setPosition(projPos.x, projPos.y);
+        view.setZoom(scene->startZoom);
+    }
 
-    // Instantiate workers
-    m_tileWorker = std::make_unique<TileWorker>(MAX_WORKERS);
+    inputHandler.setView(view);
+    tileManager.setDataSources(_scene->dataSources());
+    tileWorker.setScene(_scene);
+    setPixelScale(view.pixelScale());
 
-    // Create a tileManager
-    m_tileManager = std::make_unique<TileManager>(*m_tileWorker);
+    bool animated = scene->animated() == Scene::animate::yes;
 
-    // Label setup
-    m_labels = std::make_unique<Labels>();
-
-    loadScene(_scenePath);
-
-    glm::dvec2 projPos = m_view->getMapProjection().LonLatToMeters(m_scene->startPosition);
-    m_view->setPosition(projPos.x, projPos.y);
-    m_view->setZoom(m_scene->startZoom);
-
-    LOG("finish initialize");
-
-}
-
-void setScene(std::shared_ptr<Scene>& _scene) {
-    m_scene = _scene;
-    m_view = _scene->view();
-    m_inputHandler->setView(m_view);
-    m_tileManager->setDataSources(_scene->getAllDataSources());
-    m_tileWorker->setScene(_scene);
-    setPixelScale(m_view->pixelScale());
-
-    bool animated = m_scene->animated() == Scene::animate::yes;
-
-    if (m_scene->animated() == Scene::animate::none) {
-        for (const auto& style : m_scene->styles()) {
+    if (scene->animated() == Scene::animate::none) {
+        for (const auto& style : scene->styles()) {
             animated |= style->isAnimated();
         }
     }
@@ -116,252 +147,323 @@ void setScene(std::shared_ptr<Scene>& _scene) {
     }
 }
 
-void loadScene(const char* _scenePath) {
+void Map::loadScene(const char* _scenePath, bool _useScenePosition) {
     LOG("Loading scene file: %s", _scenePath);
 
-    auto sceneString = stringFromFile(setResourceRoot(_scenePath).c_str(), PathType::resource);
-
     // Copy old scene
-    auto scene = std::make_shared<Scene>(*m_scene);
+    auto scene = std::make_shared<Scene>(_scenePath);
+    scene->useScenePosition = _useScenePosition;
 
-    if (SceneLoader::loadScene(sceneString, *scene)) {
-        setScene(scene);
+    if (SceneLoader::loadScene(scene)) {
+        impl->setScene(scene);
     }
 }
 
-void queueSceneUpdate(const char* _path, const char* _value) {
-    return m_scene->queueUpdate(_path, _value);
-}
+void Map::loadSceneAsync(const char* _scenePath, bool _useScenePosition, MapReady _platformCallback) {
+    LOG("Loading scene file (async): %s", _scenePath);
 
-void applySceneUpdates() {
-
-    LOG("Applying scene updates");
-
-    SceneLoader::applyUpdates(m_scene->config(), m_scene->updates());
-    m_scene->clearUpdates();
-
-    auto scene = std::make_shared<Scene>(*m_scene);
-
-    if (SceneLoader::applyConfig(scene->config(), *scene)) {
-        setScene(scene);
+    {
+        std::lock_guard<std::mutex> lock(impl->sceneMutex);
+        impl->sceneUpdates.clear();
+        impl->nextScene = std::make_shared<Scene>(_scenePath);
+        impl->nextScene->useScenePosition = _useScenePosition;
     }
 
+    runAsyncTask([scene = impl->nextScene, _platformCallback, &jobQueue = impl->jobQueue, this](){
+
+            bool ok = SceneLoader::loadScene(scene);
+
+            jobQueue.add([scene, ok, _platformCallback, this]() {
+                    {
+                        std::lock_guard<std::mutex> lock(impl->sceneMutex);
+                        if (scene == impl->nextScene) {
+                            impl->nextScene.reset();
+                        } else { return; }
+                    }
+
+                    if (ok) {
+                        auto s = scene;
+                        impl->setScene(s);
+                        applySceneUpdates();
+                        if (_platformCallback) { _platformCallback(); }
+                    }
+                });
+        });
 }
 
-void resize(int _newWidth, int _newHeight) {
+void Map::queueSceneUpdate(const char* _path, const char* _value) {
+    std::lock_guard<std::mutex> lock(impl->sceneMutex);
+    impl->sceneUpdates.push_back({_path, _value});
+}
+
+void Map::applySceneUpdates() {
+
+    LOG("Applying %d scene updates", impl->sceneUpdates.size());
+
+    if (impl->nextScene) {
+        // Changes are automatically applied once the scene is loaded
+        return;
+    }
+
+    std::vector<SceneUpdate> updates;
+    {
+        std::lock_guard<std::mutex> lock(impl->sceneMutex);
+        if (impl->sceneUpdates.empty()) { return; }
+
+        impl->nextScene = std::make_shared<Scene>(*impl->scene);
+        impl->nextScene->useScenePosition = false;
+
+        updates = impl->sceneUpdates;
+        impl->sceneUpdates.clear();
+    }
+
+    runAsyncTask([scene = impl->nextScene, updates = std::move(updates), &jobQueue = impl->jobQueue, this](){
+
+            SceneLoader::applyUpdates(scene->config(), updates);
+
+            bool ok = SceneLoader::applyConfig(scene->config(), scene);
+
+            jobQueue.add([scene, ok, this]() {
+                    if (scene == impl->nextScene) {
+                        std::lock_guard<std::mutex> lock(impl->sceneMutex);
+                        impl->nextScene.reset();
+                    } else { return; }
+
+                    if (ok) {
+                        auto s = scene;
+                        impl->setScene(s);
+                        applySceneUpdates();
+                    }
+                });
+        });
+}
+
+void Map::resize(int _newWidth, int _newHeight) {
 
     LOGS("resize: %d x %d", _newWidth, _newHeight);
     LOG("resize: %d x %d", _newWidth, _newHeight);
 
     glViewport(0, 0, _newWidth, _newHeight);
 
-    if (m_view) {
-        m_view->setSize(_newWidth, _newHeight);
-    }
+    impl->view.setSize(_newWidth, _newHeight);
 
-    Primitives::setResolution(_newWidth, _newHeight);
+    Primitives::setResolution(impl->renderState, _newWidth, _newHeight);
 }
 
-bool update(float _dt) {
+bool Map::update(float _dt) {
+
+    // Wait until font resources are fully loaded
+    if (impl->scene->fontContext()->resourceLoad > 0) {
+        return false;
+    }
 
     FrameInfo::beginUpdate();
 
-    g_time += _dt;
+    impl->jobQueue.runJobs();
+
+    impl->scene->updateTime(_dt);
 
     bool viewComplete = true;
 
-    for (auto& ease : m_eases) {
+    for (auto& ease : impl->eases) {
         if (!ease.finished()) {
             ease.update(_dt);
             viewComplete = false;
         }
     }
 
-    m_inputHandler->update(_dt);
+    impl->inputHandler.update(_dt);
 
-    m_view->update();
+    impl->view.update();
 
-    size_t nTasks = 0;
-    {
-        std::lock_guard<std::mutex> lock(m_tasksMutex);
-        nTasks = m_tasks.size();
-    }
-    while (nTasks-- > 0) {
-        std::function<void()> task;
-        {
-            std::lock_guard<std::mutex> lock(m_tasksMutex);
-            task = m_tasks.front();
-            m_tasks.pop();
-        }
-        task();
-    }
-
-    for (const auto& style : m_scene->styles()) {
+    for (const auto& style : impl->scene->styles()) {
         style->onBeginUpdate();
     }
 
     {
-        std::lock_guard<std::mutex> lock(m_tilesMutex);
+        std::lock_guard<std::mutex> lock(impl->tilesMutex);
         ViewState viewState {
-            m_view->getMapProjection(),
-            m_view->changedOnLastUpdate(),
-            glm::dvec2{m_view->getPosition().x, -m_view->getPosition().y },
-            m_view->getZoom()
+            impl->view.getMapProjection(),
+            impl->view.changedOnLastUpdate(),
+            glm::dvec2{ impl->view.getPosition().x, -impl->view.getPosition().y },
+            impl->view.getZoom()
         };
 
-        m_tileManager->updateTileSets(viewState, m_view->getVisibleTiles());
+        impl->tileManager.updateTileSets(viewState, impl->view.getVisibleTiles());
 
-        auto& tiles = m_tileManager->getVisibleTiles();
+        auto& tiles = impl->tileManager.getVisibleTiles();
 
-        if (m_view->changedOnLastUpdate() ||
-            m_tileManager->hasTileSetChanged()) {
+        if (impl->view.changedOnLastUpdate() ||
+            impl->tileManager.hasTileSetChanged()) {
 
             for (const auto& tile : tiles) {
-                tile->update(_dt, *m_view);
+                tile->update(_dt, impl->view);
             }
-            m_labels->updateLabelSet(*m_view, _dt, m_scene->styles(), tiles,
-                                     m_tileManager->getTileCache());
 
+            impl->labels.updateLabelSet(impl->view, _dt, impl->scene->styles(), tiles,
+                                        *impl->tileManager.getTileCache());
         } else {
-            m_labels->updateLabels(*m_view, _dt, m_scene->styles(), tiles);
+            impl->labels.updateLabels(impl->view, _dt, impl->scene->styles(), tiles);
         }
     }
 
     FrameInfo::endUpdate();
 
-    bool viewChanged = m_view->changedOnLastUpdate();
-    bool tilesChanged = m_tileManager->hasTileSetChanged();
-    bool tilesLoading = m_tileManager->hasLoadingTiles();
-    bool labelsNeedUpdate = m_labels->needUpdate();
+    bool viewChanged = impl->view.changedOnLastUpdate();
+    bool tilesChanged = impl->tileManager.hasTileSetChanged();
+    bool tilesLoading = impl->tileManager.hasLoadingTiles();
+    bool labelsNeedUpdate = impl->labels.needUpdate();
+    bool resourceLoading = (impl->scene->resourceLoad > 0);
+    bool nextScene = bool(impl->nextScene);
 
-    if (viewChanged || tilesChanged || tilesLoading || labelsNeedUpdate) {
+    if (viewChanged || tilesChanged || tilesLoading || labelsNeedUpdate || resourceLoading || nextScene) {
         viewComplete = false;
     }
 
     // Request for render if labels are in fading in/out states
-    if (m_labels->needUpdate()) { requestRender(); }
+    if (labelsNeedUpdate) { requestRender(); }
 
     return viewComplete;
 }
 
-void render() {
+void Map::render() {
+
     FrameInfo::beginFrame();
 
     // Invalidate render states for new frame
-    if (!g_cacheGlState) {
-        RenderState::invalidate();
+    if (!impl->cacheGlState) {
+        impl->renderState.invalidate();
     }
 
+    // Run render-thread tasks
+    impl->renderState.jobQueue.runJobs();
+
     // Set up openGL for new frame
-    RenderState::depthWrite(GL_TRUE);
-    auto& color = m_scene->background();
-    RenderState::clearColor(color.r / 255.f, color.g / 255.f, color.b / 255.f, color.a / 255.f);
+    impl->renderState.depthMask(GL_TRUE);
+    auto& color = impl->scene->background();
+    impl->renderState.clearColor(color.r / 255.f, color.g / 255.f, color.b / 255.f, color.a / 255.f);
     GL_CHECK(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT));
 
-    for (const auto& style : m_scene->styles()) {
-        style->onBeginFrame();
+    for (const auto& style : impl->scene->styles()) {
+        style->onBeginFrame(impl->renderState);
     }
 
     {
-        std::lock_guard<std::mutex> lock(m_tilesMutex);
+        std::lock_guard<std::mutex> lock(impl->tilesMutex);
 
         // Loop over all styles
-        for (const auto& style : m_scene->styles()) {
+        for (const auto& style : impl->scene->styles()) {
 
-            style->onBeginDrawFrame(*m_view, *m_scene);
+            style->onBeginDrawFrame(impl->renderState, impl->view, *(impl->scene));
 
             // Loop over all tiles in m_tileSet
-            for (const auto& tile : m_tileManager->getVisibleTiles()) {
-                style->draw(*tile);
+            for (const auto& tile : impl->tileManager.getVisibleTiles()) {
+                style->draw(impl->renderState, *tile);
             }
 
             style->onEndDrawFrame();
         }
     }
 
-    m_labels->drawDebug(*m_view);
+    impl->labels.drawDebug(impl->renderState, impl->view);
 
-    FrameInfo::draw(*m_view, *m_tileManager);
+    FrameInfo::draw(impl->renderState, impl->view, impl->tileManager);
 }
 
-void setPositionNow(double _lon, double _lat) {
+int Map::getViewportHeight() {
+    return impl->view.getHeight();
+}
 
-    glm::dvec2 meters = m_view->getMapProjection().LonLatToMeters({ _lon, _lat});
-    m_view->setPosition(meters.x, meters.y);
-    m_inputHandler->cancelFling();
+int Map::getViewportWidth() {
+    return impl->view.getWidth();
+}
+
+float Map::getPixelScale() {
+    return impl->view.pixelScale();
+}
+
+void Map::captureSnapshot(unsigned int* _data) {
+    GL_CHECK(glReadPixels(0, 0, impl->view.getWidth(), impl->view.getHeight(), GL_RGBA, GL_UNSIGNED_BYTE, (GLvoid*)_data));
+}
+
+void Map::Impl::setPositionNow(double _lon, double _lat) {
+
+    glm::dvec2 meters = view.getMapProjection().LonLatToMeters({ _lon, _lat});
+    view.setPosition(meters.x, meters.y);
+    inputHandler.cancelFling();
     requestRender();
 
 }
 
-void setPosition(double _lon, double _lat) {
+void Map::setPosition(double _lon, double _lat) {
 
-    setPositionNow(_lon, _lat);
-    clearEase(EaseField::position);
+    impl->setPositionNow(_lon, _lat);
+    impl->clearEase(EaseField::position);
 
 }
 
-void setPosition(double _lon, double _lat, float _duration, EaseType _e) {
+void Map::setPositionEased(double _lon, double _lat, float _duration, EaseType _e) {
 
     double lon_start, lat_start;
     getPosition(lon_start, lat_start);
-    auto cb = [=](float t) { setPositionNow(ease(lon_start, _lon, t, _e), ease(lat_start, _lat, t, _e)); };
-    setEase(EaseField::position, { _duration, cb });
+    auto cb = [=](float t) { impl->setPositionNow(ease(lon_start, _lon, t, _e), ease(lat_start, _lat, t, _e)); };
+    impl->setEase(EaseField::position, { _duration, cb });
 
 }
 
-void getPosition(double& _lon, double& _lat) {
+void Map::getPosition(double& _lon, double& _lat) {
 
-    glm::dvec2 meters(m_view->getPosition().x, m_view->getPosition().y);
-    glm::dvec2 degrees = m_view->getMapProjection().MetersToLonLat(meters);
+    glm::dvec2 meters(impl->view.getPosition().x, impl->view.getPosition().y);
+    glm::dvec2 degrees = impl->view.getMapProjection().MetersToLonLat(meters);
     _lon = degrees.x;
     _lat = degrees.y;
 
 }
 
-void setZoomNow(float _z) {
+void Map::Impl::setZoomNow(float _z) {
 
-    m_view->setZoom(_z);
-    m_inputHandler->cancelFling();
+    view.setZoom(_z);
+    inputHandler.cancelFling();
     requestRender();
 
 }
 
-void setZoom(float _z) {
+void Map::setZoom(float _z) {
 
-    setZoomNow(_z);
-    clearEase(EaseField::zoom);
+    impl->setZoomNow(_z);
+    impl->clearEase(EaseField::zoom);
 
 }
 
-void setZoom(float _z, float _duration, EaseType _e) {
+void Map::setZoomEased(float _z, float _duration, EaseType _e) {
 
     float z_start = getZoom();
-    auto cb = [=](float t) { setZoomNow(ease(z_start, _z, t, _e)); };
-    setEase(EaseField::zoom, { _duration, cb });
+    auto cb = [=](float t) { impl->setZoomNow(ease(z_start, _z, t, _e)); };
+    impl->setEase(EaseField::zoom, { _duration, cb });
 
 }
 
-float getZoom() {
+float Map::getZoom() {
 
-    return m_view->getZoom();
+    return impl->view.getZoom();
 
 }
 
-void setRotationNow(float _radians) {
+void Map::Impl::setRotationNow(float _radians) {
 
-    m_view->setRoll(_radians);
+    view.setRoll(_radians);
     requestRender();
 
 }
 
-void setRotation(float _radians) {
+void Map::setRotation(float _radians) {
 
-    setRotationNow(_radians);
-    clearEase(EaseField::rotation);
+    impl->setRotationNow(_radians);
+    impl->clearEase(EaseField::rotation);
 
 }
 
-void setRotation(float _radians, float _duration, EaseType _e) {
+void Map::setRotationEased(float _radians, float _duration, EaseType _e) {
 
     float radians_start = getRotation();
 
@@ -370,150 +472,203 @@ void setRotation(float _radians, float _duration, EaseType _e) {
     if (radians_delta > PI) { radians_delta -= TWO_PI; }
     _radians = radians_start + radians_delta;
 
-    auto cb = [=](float t) { setRotationNow(ease(radians_start, _radians, t, _e)); };
-    setEase(EaseField::rotation, { _duration, cb });
+    auto cb = [=](float t) { impl->setRotationNow(ease(radians_start, _radians, t, _e)); };
+    impl->setEase(EaseField::rotation, { _duration, cb });
 
 }
 
-float getRotation() {
+float Map::getRotation() {
 
-    return m_view->getRoll();
+    return impl->view.getRoll();
 
 }
 
 
-void setTiltNow(float _radians) {
+void Map::Impl::setTiltNow(float _radians) {
 
-    m_view->setPitch(_radians);
+    view.setPitch(_radians);
     requestRender();
 
 }
 
-void setTilt(float _radians) {
+void Map::setTilt(float _radians) {
 
-    setTiltNow(_radians);
-    clearEase(EaseField::tilt);
+    impl->setTiltNow(_radians);
+    impl->clearEase(EaseField::tilt);
 
 }
 
-void setTilt(float _radians, float _duration, EaseType _e) {
+void Map::setTiltEased(float _radians, float _duration, EaseType _e) {
 
     float tilt_start = getTilt();
-    auto cb = [=](float t) { setTiltNow(ease(tilt_start, _radians, t, _e)); };
-    setEase(EaseField::tilt, { _duration, cb });
+    auto cb = [=](float t) { impl->setTiltNow(ease(tilt_start, _radians, t, _e)); };
+    impl->setEase(EaseField::tilt, { _duration, cb });
 
 }
 
-float getTilt() {
+float Map::getTilt() {
 
-    return m_view->getPitch();
-
-}
-
-void screenToWorldCoordinates(double& _x, double& _y) {
-
-    m_view->screenToGroundPlane(_x, _y);
-    glm::dvec2 meters(_x + m_view->getPosition().x, _y + m_view->getPosition().y);
-    glm::dvec2 lonLat = m_view->getMapProjection().MetersToLonLat(meters);
-    _x = lonLat.x;
-    _y = lonLat.y;
+    return impl->view.getPitch();
 
 }
 
-void setPixelScale(float _pixelsPerPoint) {
+bool Map::screenPositionToLngLat(double _x, double _y, double* _lng, double* _lat) {
 
-    if (m_view) {
-        m_view->setPixelScale(_pixelsPerPoint);
-    }
+    double intersection = impl->view.screenToGroundPlane(_x, _y);
+    glm::dvec3 eye = impl->view.getPosition();
+    glm::dvec2 meters(_x + eye.x, _y + eye.y);
+    glm::dvec2 lngLat = impl->view.getMapProjection().MetersToLonLat(meters);
+    *_lng = lngLat.x;
+    *_lat = lngLat.y;
 
-    for (auto& style : m_scene->styles()) {
+    return (intersection >= 0);
+}
+
+bool Map::lngLatToScreenPosition(double _lng, double _lat, double* _x, double* _y) {
+    bool clipped = false;
+
+    glm::vec2 screenCoords = impl->view.lonLatToScreenPosition(_lng, _lat, clipped);
+
+    *_x = screenCoords.x;
+    *_y = screenCoords.y;
+
+    float width = impl->view.getWidth();
+    float height = impl->view.getHeight();
+    bool withinViewport = *_x >= 0. && *_x <= width && *_y >= 0. && *_y <= height;
+
+    return !clipped && withinViewport;
+}
+
+void Map::setPixelScale(float _pixelsPerPoint) {
+
+    impl->setPixelScale(_pixelsPerPoint);
+
+}
+
+void Map::Impl::setPixelScale(float _pixelsPerPoint) {
+
+    view.setPixelScale(_pixelsPerPoint);
+    scene->setPixelScale(_pixelsPerPoint);
+    for (auto& style : scene->styles()) {
         style->setPixelScale(_pixelsPerPoint);
     }
+
 }
 
-void setCameraType(int _type) {
+void Map::setCameraType(int _type) {
 
-    m_view->setCameraType(static_cast<CameraType>(_type));
+    impl->view.setCameraType(static_cast<CameraType>(_type));
     requestRender();
 
 }
 
-int getCameraType() {
+int Map::getCameraType() {
 
-    return static_cast<int>(m_view->cameraType());
+    return static_cast<int>(impl->view.cameraType());
 
 }
 
-void addDataSource(std::shared_ptr<DataSource> _source) {
-    if (!m_tileManager) { return; }
-    std::lock_guard<std::mutex> lock(m_tilesMutex);
-    m_scene->addClientDataSource(_source);
-    m_tileManager->addDataSource(_source);
+void Map::addDataSource(std::shared_ptr<DataSource> _source) {
+    std::lock_guard<std::mutex> lock(impl->tilesMutex);
+    impl->tileManager.addClientDataSource(_source);
 }
 
-bool removeDataSource(DataSource& source) {
-    if (!m_tileManager) { return false; }
-    std::lock_guard<std::mutex> lock(m_tilesMutex);
-    m_scene->removeClientDataSource(source);
-    return m_tileManager->removeDataSource(source);
+bool Map::removeDataSource(DataSource& source) {
+    std::lock_guard<std::mutex> lock(impl->tilesMutex);
+    return impl->tileManager.removeClientDataSource(source);
 }
 
-void clearDataSource(DataSource& _source, bool _data, bool _tiles) {
-    if (!m_tileManager) { return; }
-    std::lock_guard<std::mutex> lock(m_tilesMutex);
+void Map::clearDataSource(DataSource& _source, bool _data, bool _tiles) {
+    std::lock_guard<std::mutex> lock(impl->tilesMutex);
 
-    if (_tiles) { m_tileManager->clearTileSet(_source.id()); }
+    if (_tiles) { impl->tileManager.clearTileSet(_source.id()); }
     if (_data) { _source.clearData(); }
 
     requestRender();
 }
 
-void handleTapGesture(float _posX, float _posY) {
+void Map::handleTapGesture(float _posX, float _posY) {
 
-    m_inputHandler->handleTapGesture(_posX, _posY);
-
-}
-
-void handleDoubleTapGesture(float _posX, float _posY) {
-
-    m_inputHandler->handleDoubleTapGesture(_posX, _posY);
+    impl->inputHandler.handleTapGesture(_posX, _posY);
 
 }
 
-void handlePanGesture(float _startX, float _startY, float _endX, float _endY) {
+void Map::handleDoubleTapGesture(float _posX, float _posY) {
 
-    m_inputHandler->handlePanGesture(_startX, _startY, _endX, _endY);
-
-}
-
-void handleFlingGesture(float _posX, float _posY, float _velocityX, float _velocityY) {
-
-    m_inputHandler->handleFlingGesture(_posX, _posY, _velocityX, _velocityY);
+    impl->inputHandler.handleDoubleTapGesture(_posX, _posY);
 
 }
 
-void handlePinchGesture(float _posX, float _posY, float _scale, float _velocity) {
+void Map::handlePanGesture(float _startX, float _startY, float _endX, float _endY) {
 
-    m_inputHandler->handlePinchGesture(_posX, _posY, _scale, _velocity);
-
-}
-
-void handleRotateGesture(float _posX, float _posY, float _radians) {
-
-    m_inputHandler->handleRotateGesture(_posX, _posY, _radians);
+    impl->inputHandler.handlePanGesture(_startX, _startY, _endX, _endY);
 
 }
 
-void handleShoveGesture(float _distance) {
+void Map::handleFlingGesture(float _posX, float _posY, float _velocityX, float _velocityY) {
 
-    m_inputHandler->handleShoveGesture(_distance);
+    impl->inputHandler.handleFlingGesture(_posX, _posY, _velocityX, _velocityY);
 
+}
+
+void Map::handlePinchGesture(float _posX, float _posY, float _scale, float _velocity) {
+
+    impl->inputHandler.handlePinchGesture(_posX, _posY, _scale, _velocity);
+
+}
+
+void Map::handleRotateGesture(float _posX, float _posY, float _radians) {
+
+    impl->inputHandler.handleRotateGesture(_posX, _posY, _radians);
+
+}
+
+void Map::handleShoveGesture(float _distance) {
+
+    impl->inputHandler.handleShoveGesture(_distance);
+
+}
+
+void Map::setupGL() {
+
+    LOG("setup GL");
+
+    impl->tileManager.clearTileSets();
+
+    // Reconfigure the render states. Increases context 'generation'.
+    // The OpenGL context has been destroyed since the last time resources were
+    // created, so we invalidate all data that depends on OpenGL object handles.
+    impl->renderState.increaseGeneration();
+    impl->renderState.invalidate();
+
+    // Set default primitive render color
+    Primitives::setColor(impl->renderState, 0xffffff);
+
+    // Load GL extensions and capabilities
+    Hardware::loadExtensions();
+    Hardware::loadCapabilities();
+
+    Hardware::printAvailableExtensions();
+}
+
+void Map::useCachedGlState(bool _useCache) {
+    impl->cacheGlState = _useCache;
+}
+
+const std::vector<TouchItem>& Map::pickFeaturesAt(float _x, float _y) {
+    return impl->labels.getFeaturesAtPoint(impl->view, 0, impl->scene->styles(),
+                                           impl->tileManager.getVisibleTiles(),
+                                           _x, _y);
+}
+
+void Map::runAsyncTask(std::function<void()> _task) {
+    impl->asyncWorker.enqueue(std::move(_task));
 }
 
 void setDebugFlag(DebugFlags _flag, bool _on) {
 
     g_flags.set(_flag, _on);
-    m_view->setZoom(m_view->getZoom()); // Force the view to refresh
+    // m_view->setZoom(m_view->getZoom()); // Force the view to refresh
 
 }
 
@@ -526,60 +681,18 @@ bool getDebugFlag(DebugFlags _flag) {
 void toggleDebugFlag(DebugFlags _flag) {
 
     g_flags.flip(_flag);
-    m_view->setZoom(m_view->getZoom()); // Force the view to refresh
+    // m_view->setZoom(m_view->getZoom()); // Force the view to refresh
 
     // Rebuild tiles for debug modes that needs it
-    if (_flag == DebugFlags::proxy_colors
-     || _flag == DebugFlags::tile_bounds
-     || _flag == DebugFlags::tile_infos) {
-        if (m_tileManager) {
-            std::lock_guard<std::mutex> lock(m_tilesMutex);
-            m_tileManager->clearTileSets();
-        }
-    }
-}
-
-const std::vector<TouchItem>& pickFeaturesAt(float _x, float _y) {
-    return m_labels->getFeaturesAtPoint(*m_view, 0, m_scene->styles(),
-                                        m_tileManager->getVisibleTiles(),
-                                        _x, _y);
-}
-
-void useCachedGlState(bool _useCache) {
-    g_cacheGlState = _useCache;
-}
-
-void setupGL() {
-
-    LOG("setup GL");
-
-    if (m_tileManager) {
-        m_tileManager->clearTileSets();
-    }
-
-    // Reconfigure the render states. Increases context 'generation'.
-    // The OpenGL context has been destroyed since the last time resources were
-    // created, so we invalidate all data that depends on OpenGL object handles.
-    RenderState::invalidate();
-    RenderState::increaseGeneration();
-
-    // Set default primitive render color
-    Primitives::setColor(0xffffff);
-
-    // Load GL extensions and capabilities
-    Hardware::loadExtensions();
-    Hardware::loadCapabilities();
-
-    Hardware::printAvailableExtensions();
-}
-
-void runOnMainLoop(std::function<void()> _task) {
-    std::lock_guard<std::mutex> lock(m_tasksMutex);
-    m_tasks.emplace(std::move(_task));
-}
-
-float frameTime() {
-    return g_time;
+    // if (_flag == DebugFlags::proxy_colors
+    //  || _flag == DebugFlags::draw_all_labels
+    //  || _flag == DebugFlags::tile_bounds
+    //  || _flag == DebugFlags::tile_infos) {
+    //     if (m_tileManager) {
+    //         std::lock_guard<std::mutex> lock(m_tilesMutex);
+    //         m_tileManager->clearTileSets();
+    //     }
+    // }
 }
 
 }

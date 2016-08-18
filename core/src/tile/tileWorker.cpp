@@ -29,20 +29,6 @@ TileWorker::~TileWorker(){
     }
 }
 
-void disposeBuilder(std::unique_ptr<TileBuilder> _builder) {
-    if (_builder) {
-        // Bind _builder to a std::function that will run on the next mainloop
-        // iteration and does therefore dispose the TileBuilder, including it's
-        // Scene reference with OpenGL resources on the mainloop. This is done
-        // in order to ensure that no GL functions are called on
-        // the worker-thread.
-        auto disposer = std::bind([](auto builder){},
-                                  std::shared_ptr<TileBuilder>(std::move(_builder)));
-
-        Tangram::runOnMainLoop(disposer);
-    }
-}
-
 void TileWorker::run(Worker* instance) {
 
     setCurrentThreadPriority(WORKER_NICENESS);
@@ -60,20 +46,16 @@ void TileWorker::run(Worker* instance) {
                 });
 
             if (instance->tileBuilder) {
-                disposeBuilder(std::move(builder));
-
                 builder = std::move(instance->tileBuilder);
                 LOG("Passed new TileBuilder to TileWorker");
             }
 
             // Check if thread should stop
             if (!m_running) {
-                disposeBuilder(std::move(builder));
                 break;
             }
 
             if (!builder) {
-                LOGE("Missing Scene/StyleContext in TileWorker!");
                 continue;
             }
 

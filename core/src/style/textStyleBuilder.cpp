@@ -1,5 +1,7 @@
 #include "textStyleBuilder.h"
 
+#include "labels/labelCollider.h"
+#include "labels/labelSet.h"
 #include "labels/textLabel.h"
 #include "labels/textLabels.h"
 
@@ -9,16 +11,16 @@
 #include "util/geom.h"
 #include "util/mapProjection.h"
 #include "view/view.h"
+#include "tangram.h"
 
 #include <cmath>
 #include <locale>
 #include <mutex>
-#include <sstream>
+#include <algorithm>
 
 namespace Tangram {
 
 const static std::string key_name("name");
-
 
 TextStyleBuilder::TextStyleBuilder(const TextStyle& _style)
     : StyleBuilder(_style),
@@ -26,16 +28,115 @@ TextStyleBuilder::TextStyleBuilder(const TextStyle& _style)
 
 void TextStyleBuilder::setup(const Tile& _tile){
     m_tileSize = _tile.getProjection()->TileSize();
+    m_tileSize *= m_style.pixelScale();
+
+    float tileScale = pow(2, _tile.getID().s - _tile.getID().z);
+    m_tileSize *= tileScale;
+
+    // add scale factor to the next zoom-level
+    m_tileSize *= 2;
+
     m_atlasRefs.reset();
 
     m_textLabels = std::make_unique<TextLabels>(m_style);
 }
 
+void TextStyleBuilder::addLayoutItems(LabelCollider& _layout) {
+    _layout.addLabels(m_labels);
+}
+
 std::unique_ptr<StyledMesh> TextStyleBuilder::build() {
+
     if (m_quads.empty()) { return nullptr; }
 
-    m_textLabels->setLabels(m_labels);
-    m_textLabels->setQuads(m_quads, m_atlasRefs);
+    if (Tangram::getDebugFlag(DebugFlags::draw_all_labels)) {
+        m_textLabels->setLabels(m_labels);
+
+        std::vector<GlyphQuad> quads(m_quads);
+        m_textLabels->setQuads(std::move(quads), m_atlasRefs);
+
+    } else {
+
+        // TODO this could probably done more elegant
+
+        int quadPos = 0;
+        size_t sumQuads = 0;
+        size_t sumLabels = 0;
+        bool added = false;
+
+        // Determine number of labels and size of final quads vector
+        for (auto& label : m_labels) {
+            auto* textLabel = static_cast<TextLabel*>(label.get());
+
+            auto& ranges = textLabel->textRanges();
+
+            bool active = textLabel->state() != Label::State::dead;
+
+            if (ranges.back().end() != quadPos) {
+                quadPos = ranges.back().end();
+                added = false;
+            }
+
+            if (!active) { continue; }
+
+            sumLabels +=1;
+            if (!added) {
+                added = true;
+
+                for (auto& textRange : ranges) {
+                    sumQuads += textRange.length;
+                }
+            }
+        }
+
+        size_t quadEnd = 0;
+        size_t quadStart = 0;
+        quadPos = 0;
+
+        std::vector<std::unique_ptr<Label>> labels;
+        labels.reserve(sumLabels);
+
+        std::vector<GlyphQuad> quads;
+        quads.reserve(sumQuads);
+
+        // Add only alive labels
+        for (auto& label : m_labels) {
+            auto* textLabel = static_cast<TextLabel*>(label.get());
+
+            bool active = textLabel->state() != Label::State::dead;
+            if (!active) { continue; }
+
+            auto& ranges = textLabel->textRanges();
+
+            // Add the quads of line-labels only once
+            if (ranges.back().end() != quadPos) {
+                quadStart = quadEnd;
+                quadPos = ranges.back().end();
+
+                for (auto& textRange : ranges) {
+                    if (textRange.length > 0) {
+                        quadEnd += textRange.length;
+
+                        auto it = m_quads.begin() + textRange.start;
+                        quads.insert(quads.end(), it, it + textRange.length);
+                    }
+                }
+            }
+
+            // Update TextRange
+            auto start = quadStart;
+
+            for (auto& textRange : ranges) {
+                textRange.start = start;
+                start += textRange.length;
+            }
+
+            labels.push_back(std::move(label));
+        }
+
+        m_textLabels->setLabels(labels);
+        m_textLabels->setQuads(std::move(quads), m_atlasRefs);
+    }
 
     m_labels.clear();
     m_quads.clear();
@@ -43,7 +144,7 @@ std::unique_ptr<StyledMesh> TextStyleBuilder::build() {
     return std::move(m_textLabels);
 }
 
-void TextStyleBuilder::addFeatureCommon(const Feature& _feat, const DrawRule& _rule, bool _iconText) {
+bool TextStyleBuilder::addFeatureCommon(const Feature& _feat, const DrawRule& _rule, bool _iconText) {
     TextStyle::Parameters params = applyRule(_rule, _feat.props, _iconText);
 
     Label::Type labelType;
@@ -58,7 +159,7 @@ void TextStyleBuilder::addFeatureCommon(const Feature& _feat, const DrawRule& _r
     size_t quadsStart = m_quads.size();
     size_t numLabels = m_labels.size();
 
-    if (!prepareLabel(params, labelType)) { return; }
+    if (!prepareLabel(params, labelType)) { return false; }
 
     if (_feat.geometryType == GeometryType::points) {
         for (auto& point : _feat.points) {
@@ -83,30 +184,79 @@ void TextStyleBuilder::addFeatureCommon(const Feature& _feat, const DrawRule& _r
 
     } else if (_feat.geometryType == GeometryType::lines) {
 
-        float pixel = 2.0 / (m_tileSize * m_style.pixelScale());
-        float minLength = m_attributes.width * pixel * 0.2;
-
-        for (auto& line : _feat.lines) {
-            if (_iconText) {
+        if (_iconText) {
+            for (auto& line : _feat.lines) {
                 for (auto& point : line) {
                     auto p = glm::vec2(point);
                     addLabel(params, Label::Type::point, { p });
                 }
-            } else {
-                for (size_t i = 0; i < line.size() - 1; i++) {
-                    glm::vec2 p1 = glm::vec2(line[i]);
-                    glm::vec2 p2 = glm::vec2(line[i + 1]);
-                    if (glm::length(p1-p2) > minLength) {
-                        addLabel(params, Label::Type::line, { p1, p2 });
-                    }
-                }
             }
+        } else {
+            addLineTextLabels(_feat, params);
         }
     }
 
     if (numLabels == m_labels.size()) {
         // Drop quads when no label was added
         m_quads.resize(quadsStart);
+    }
+    return true;
+}
+
+void TextStyleBuilder::addLineTextLabels(const Feature& _feat, const TextStyle::Parameters& _params) {
+    float pixelScale = 1.0/m_tileSize;
+    float minLength = m_attributes.width * pixelScale;
+
+    float tolerance = pow(pixelScale * 2, 2);
+
+    for (auto& line : _feat.lines) {
+
+        for (size_t i = 0; i < line.size() - 1; i++) {
+            glm::vec2 p1 = glm::vec2(line[i]);
+            glm::vec2 p2;
+
+            float segmentLength = 0;
+            bool merged = false;
+            size_t next = i+1;
+
+            for (size_t j = next; j < line.size(); j++) {
+                glm::vec2 p = glm::vec2(line[j]);
+                segmentLength = glm::length(p1 - p);
+
+                if (j == next) {
+                    if (segmentLength > minLength) {
+                        addLabel(_params, Label::Type::line, { p1, p });
+                    }
+                } else {
+                    glm::vec2 pp = glm::vec2(line[j-1]);
+
+                    float d = sqPointSegmentDistance(pp, p1, p);
+                    if (d > tolerance) { break; }
+
+                    // Skip merged segment
+                    merged = true;
+                    i += 1;
+                }
+                p2 = p;
+            }
+
+            // place labels at segment-subdivisions
+            int run = merged ? 1 : 2;
+            segmentLength /= run;
+
+            while (segmentLength > minLength && run <= 4) {
+                glm::vec2 a = p1;
+                glm::vec2 b = glm::vec2(p2 - p1) / float(run);
+
+                for (int r = 0; r < run; r++) {
+                    addLabel(_params, Label::Type::line, { a, a+b });
+                    a += b;
+                }
+                run *= 2;
+                segmentLength /= 2.0f;
+            }
+
+        }
     }
 }
 
@@ -119,12 +269,6 @@ TextStyle::Parameters TextStyleBuilder::applyRule(const DrawRule& _rule,
     const static std::string defaultFamily("default");
 
     TextStyle::Parameters p;
-
-    if (_iconText) {
-        p = m_style.defaultUnifiedParams();
-    }
-
-    glm::vec2 offset;
 
     _rule.get(StyleParamKey::text_source, p.text);
     if (!_rule.isJSFunction(StyleParamKey::text_source)) {
@@ -152,23 +296,36 @@ TextStyle::Parameters TextStyleBuilder::applyRule(const DrawRule& _rule,
 
     _rule.get(StyleParamKey::text_font_fill, p.fill);
 
-    p.labelOptions.offset *= m_style.pixelScale();
-
     _rule.get(StyleParamKey::text_font_stroke_color, p.strokeColor);
     _rule.get(StyleParamKey::text_font_stroke_width, p.strokeWidth);
     p.strokeWidth *= m_style.pixelScale();
 
-    const std::string* anchor = nullptr;
+    _rule.get(StyleParamKey::transition_hide_time, p.labelOptions.hideTransition.time);
+    _rule.get(StyleParamKey::transition_selected_time, p.labelOptions.selectTransition.time);
+    _rule.get(StyleParamKey::transition_show_time, p.labelOptions.showTransition.time);
 
     uint32_t priority;
     if (_iconText) {
+
         if (_rule.get(StyleParamKey::text_priority, priority)) {
             p.labelOptions.priority = (float)priority;
         }
         _rule.get(StyleParamKey::text_collide, p.labelOptions.collide);
         _rule.get(StyleParamKey::text_interactive, p.interactive);
         _rule.get(StyleParamKey::text_offset, p.labelOptions.offset);
-        anchor = _rule.get<std::string>(StyleParamKey::text_anchor);
+        p.labelOptions.offset *= m_style.pixelScale();
+
+        _rule.get(StyleParamKey::text_anchor, p.labelOptions.anchors);
+        if (p.labelOptions.anchors.count == 0) {
+            p.labelOptions.anchors.anchor = { LabelProperty::Anchor::bottom, LabelProperty::Anchor::top,
+                                              LabelProperty::Anchor::right, LabelProperty::Anchor::left };
+            p.labelOptions.anchors.count = 4;
+        }
+
+        _rule.get(StyleParamKey::text_transition_hide_time, p.labelOptions.hideTransition.time);
+        _rule.get(StyleParamKey::text_transition_selected_time, p.labelOptions.selectTransition.time);
+        _rule.get(StyleParamKey::text_transition_show_time, p.labelOptions.showTransition.time);
+
     } else {
         if (_rule.get(StyleParamKey::priority, priority)) {
             p.labelOptions.priority = (float)priority;
@@ -176,12 +333,15 @@ TextStyle::Parameters TextStyleBuilder::applyRule(const DrawRule& _rule,
         _rule.get(StyleParamKey::collide, p.labelOptions.collide);
         _rule.get(StyleParamKey::interactive, p.interactive);
         _rule.get(StyleParamKey::offset, p.labelOptions.offset);
-        anchor = _rule.get<std::string>(StyleParamKey::anchor);
+        p.labelOptions.offset *= m_style.pixelScale();
+
+        _rule.get(StyleParamKey::anchor, p.labelOptions.anchors);
+        if (p.labelOptions.anchors.count == 0) {
+            p.labelOptions.anchors.anchor = { LabelProperty::Anchor::center };
+            p.labelOptions.anchors.count = 1;
+        }
     }
 
-    _rule.get(StyleParamKey::text_transition_hide_time, p.labelOptions.hideTransition.time);
-    _rule.get(StyleParamKey::text_transition_selected_time, p.labelOptions.selectTransition.time);
-    _rule.get(StyleParamKey::text_transition_show_time, p.labelOptions.showTransition.time);
     _rule.get(StyleParamKey::text_wrap, p.maxLineWidth);
 
     size_t repeatGroupHash = 0;
@@ -204,11 +364,8 @@ TextStyle::Parameters TextStyleBuilder::applyRule(const DrawRule& _rule,
     p.labelOptions.repeatDistance *= m_style.pixelScale();
 
     if (p.interactive) {
+        // TODO optimization: for icon-text use the parent's properties
         p.labelOptions.properties = std::make_shared<Properties>(_props);
-    }
-
-    if (anchor) {
-        LabelProperty::anchor(*anchor, p.anchor);
     }
 
     if (auto* transform = _rule.get<std::string>(StyleParamKey::text_transform)) {
@@ -217,25 +374,12 @@ TextStyle::Parameters TextStyleBuilder::applyRule(const DrawRule& _rule,
 
     if (auto* align = _rule.get<std::string>(StyleParamKey::text_align)) {
         bool res = TextLabelProperty::align(*align, p.align);
-        if (!res) {
-            switch(p.anchor) {
-            case LabelProperty::Anchor::top_left:
-            case LabelProperty::Anchor::left:
-            case LabelProperty::Anchor::bottom_left:
-                p.align = TextLabelProperty::Align::right;
-                break;
-            case LabelProperty::Anchor::top_right:
-            case LabelProperty::Anchor::right:
-            case LabelProperty::Anchor::bottom_right:
-                p.align = TextLabelProperty::Align::left;
-                break;
-            case LabelProperty::Anchor::top:
-            case LabelProperty::Anchor::bottom:
-            case LabelProperty::Anchor::center:
-                break;
-            }
+        if (!res && p.labelOptions.anchors.count > 0) {
+            p.align = TextLabelProperty::alignFromAnchor(p.labelOptions.anchors[0]);
         }
     }
+
+    _rule.get(StyleParamKey::text_required, p.labelOptions.required);
 
     // TODO style option?
     p.labelOptions.buffer = p.fontSize * 0.25f;
@@ -347,14 +491,15 @@ bool TextStyleBuilder::prepareLabel(TextStyle::Parameters& _params, Label::Type 
     m_attributes.fill = _params.fill;
     m_attributes.fontScale = _params.fontScale * 64.f;
     if (m_attributes.fontScale > 255) {
-        // FIXME: This warning should not be logged for every label
-        // LOGW("Too large font scale %f, maximal scale is 4", _params.fontScale);
+        LOGN("Too large font scale %f, maximal scale is 4", _params.fontScale);
         m_attributes.fontScale = 255;
     }
     m_attributes.quadsStart = m_quads.size();
 
+    m_attributes.textRanges = TextRange{};
+
     glm::vec2 bbox(0);
-    if (ctx->layoutText(_params, *renderText, m_quads, m_atlasRefs, bbox)) {
+    if (ctx->layoutText(_params, *renderText, m_quads, m_atlasRefs, bbox, m_attributes.textRanges)) {
         m_attributes.width = bbox.x;
         m_attributes.height = bbox.y;
         return true;
@@ -365,13 +510,11 @@ bool TextStyleBuilder::prepareLabel(TextStyle::Parameters& _params, Label::Type 
 void TextStyleBuilder::addLabel(const TextStyle::Parameters& _params, Label::Type _type,
                                 Label::Transform _transform) {
 
-    int quadsStart = m_attributes.quadsStart;
-    int quadsCount = m_quads.size() - quadsStart;
-
-    m_labels.emplace_back(new TextLabel(_transform, _type, _params.labelOptions, _params.anchor,
+    m_labels.emplace_back(new TextLabel(_transform, _type, _params.labelOptions,
                                         {m_attributes.fill, m_attributes.stroke, m_attributes.fontScale},
                                         {m_attributes.width, m_attributes.height},
-                                        *m_textLabels, {quadsStart, quadsCount}));
+                                        *m_textLabels, m_attributes.textRanges,
+                                        _params.align));
 }
 
 }

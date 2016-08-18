@@ -2,6 +2,7 @@
 
 #include "platform.h"
 #include "util/geom.h"
+#include "gl/error.h"
 #include "gl/renderState.h"
 #include "gl/hardware.h"
 #include "tangram.h"
@@ -20,41 +21,40 @@ Texture::Texture(unsigned int _width, unsigned int _height, TextureOptions _opti
     m_shouldResize = false;
     m_target = GL_TEXTURE_2D;
     m_generation = -1;
-
     resize(_width, _height);
 }
 
-Texture::Texture(const std::string& _file, TextureOptions _options, bool _generateMipmaps, bool _flipOnLoad)
-    : Texture(0u, 0u, _options, _generateMipmaps) {
-
-    unsigned int size;
-    unsigned char* data;
-
-    data = bytesFromFile(_file.c_str(), PathType::resource, &size);
-
-    if (data) {
-        loadImageFromMemory(data, size, _flipOnLoad);
-    } else {
-        LOGE("Failed to read Texture file: %s", _file.c_str());
-    }
-
-    free(data);
-}
-
-Texture::Texture(const unsigned char* data, size_t dataSize, TextureOptions options, bool generateMipmaps, bool _flipOnLoad)
+Texture::Texture(const unsigned char* data, size_t dataSize, TextureOptions options, bool generateMipmaps)
     : Texture(0u, 0u, options, generateMipmaps) {
 
-    loadImageFromMemory(data, dataSize, _flipOnLoad);
+    loadImageFromMemory(data, dataSize);
 }
 
-void Texture::loadImageFromMemory(const unsigned char* blob, unsigned int size, bool flipOnLoad) {
+Texture::~Texture() {
+
+    auto generation = m_generation;
+    auto glHandle = m_glHandle;
+    auto target = m_target;
+
+    m_disposer([=](RenderState& rs) {
+        if (rs.isValidGeneration(generation)) {
+            // If the currently-bound texture is deleted, the binding resets to 0
+            // according to the OpenGL spec, so unset this texture binding.
+            rs.textureUnset(target, glHandle);
+
+            GL_CHECK(glDeleteTextures(1, &glHandle));
+        }
+    });
+}
+
+bool Texture::loadImageFromMemory(const unsigned char* blob, unsigned int size) {
     unsigned char* pixels = nullptr;
     int width, height, comp;
 
-    // stbi_load_from_memory loads the image as a serie of scanline starting from
-    // the top-left corner of the image. When shouldFlip is set to true, the image
-    // would be flipped vertically.
-    stbi_set_flip_vertically_on_load((int)flipOnLoad);
+    // stbi_load_from_memory loads the image as a series of scanlines starting from
+    // the top-left corner of the image. This call flips the output such that the data
+    // begins at the bottom-left corner, as required for OpenGL texture data.
+    stbi_set_flip_vertically_on_load(1);
 
     if (blob != nullptr && size != 0) {
         pixels = stbi_load_from_memory(blob, size, &width, &height, &comp, STBI_rgb_alpha);
@@ -67,34 +67,20 @@ void Texture::loadImageFromMemory(const unsigned char* blob, unsigned int size, 
 
         stbi_image_free(pixels);
 
-        m_validData = true;
-    } else {
-        // Default inconsistent texture data is set to a 1*1 pixel texture
-        // This reduces inconsistent behavior when texture failed loading
-        // texture data but a Tangram style shader requires a shader sampler
-        GLuint blackPixel = 0x0000ff;
-
-        setData(&blackPixel, 1);
-
-        LOGE("Decoding image from memory failed");
-
-        m_validData = false;
+        return true;
     }
+    // Default inconsistent texture data is set to a 1*1 pixel texture
+    // This reduces inconsistent behavior when texture failed loading
+    // texture data but a Tangram style shader requires a shader sampler
+    GLuint blackPixel = 0x0000ff;
+
+    setData(&blackPixel, 1);
+
+    return false;
 }
 
 Texture::Texture(Texture&& _other) {
-    m_glHandle = _other.m_glHandle;
-    _other.m_glHandle = 0;
-
-    m_options = _other.m_options;
-    m_data = std::move(_other.m_data);
-    m_dirtyRanges = std::move(_other.m_dirtyRanges);
-    m_shouldResize = _other.m_shouldResize;
-    m_width = _other.m_width;
-    m_height = _other.m_height;
-    m_target = _other.m_target;
-    m_generation = _other.m_generation;
-    m_generateMipmaps = _other.m_generateMipmaps;
+    *this = std::move(_other);
 }
 
 Texture& Texture::operator=(Texture&& _other) {
@@ -110,21 +96,9 @@ Texture& Texture::operator=(Texture&& _other) {
     m_target = _other.m_target;
     m_generation = _other.m_generation;
     m_generateMipmaps = _other.m_generateMipmaps;
+    m_disposer = std::move(_other.m_disposer);
 
     return *this;
-}
-
-Texture::~Texture() {
-    if (m_glHandle) {
-        Tangram::runOnMainLoop([id = m_glHandle]() { GL_CHECK(glDeleteTextures(1, &id)); });
-
-        // if the texture is bound, and deleted, the binding defaults to 0
-        // according to the OpenGL spec, in this case we need to force the
-        // currently bound texture to 0 in the render states
-        if (RenderState::texture.compare(m_target, m_glHandle)) {
-            RenderState::texture.init(m_target, 0, false);
-        }
-    }
 }
 
 void Texture::setData(const GLuint* _data, unsigned int _dataSize) {
@@ -200,15 +174,15 @@ void Texture::setDirty(size_t _yoff, size_t _height) {
     }
 }
 
-void Texture::bind(GLuint _unit) {
-    RenderState::textureUnit(_unit);
-    RenderState::texture(m_target, m_glHandle);
+void Texture::bind(RenderState& rs, GLuint _unit) {
+    rs.textureUnit(_unit);
+    rs.texture(m_target, m_glHandle);
 }
 
-void Texture::generate(GLuint _textureUnit) {
-   GL_CHECK(glGenTextures(1, &m_glHandle));
+void Texture::generate(RenderState& rs, GLuint _textureUnit) {
+    GL_CHECK(glGenTextures(1, &m_glHandle));
 
-    bind(_textureUnit);
+    bind(rs, _textureUnit);
 
     GL_CHECK(glTexParameteri(m_target, GL_TEXTURE_MIN_FILTER, m_options.filtering.min));
     GL_CHECK(glTexParameteri(m_target, GL_TEXTURE_MAG_FILTER, m_options.filtering.mag));
@@ -216,30 +190,25 @@ void Texture::generate(GLuint _textureUnit) {
     GL_CHECK(glTexParameteri(m_target, GL_TEXTURE_WRAP_S, m_options.wrapping.wraps));
     GL_CHECK(glTexParameteri(m_target, GL_TEXTURE_WRAP_T, m_options.wrapping.wrapt));
 
-    m_generation = RenderState::generation();
+    m_generation = rs.generation();
+    m_disposer = Disposer(rs);
 }
 
-void Texture::checkValidity() {
+void Texture::checkValidity(RenderState& rs) {
 
-    if (!RenderState::isValidGeneration(m_generation)) {
+    if (!rs.isValidGeneration(m_generation)) {
         m_shouldResize = true;
         m_glHandle = 0;
     }
 }
 
-bool Texture::isValid() const {
-    return (RenderState::isValidGeneration(m_generation)
-        && m_glHandle != 0
-        && hasValidData());
+bool Texture::isValid(RenderState& rs) const {
+    return (rs.isValidGeneration(m_generation) && m_glHandle != 0);
 }
 
-bool Texture::hasValidData() const {
-    return m_validData;
-}
+void Texture::update(RenderState& rs, GLuint _textureUnit) {
 
-void Texture::update(GLuint _textureUnit) {
-
-    checkValidity();
+    checkValidity(rs);
 
     if (!m_shouldResize && m_dirtyRanges.empty()) {
         return;
@@ -254,12 +223,12 @@ void Texture::update(GLuint _textureUnit) {
 
     GLuint* data = m_data.size() > 0 ? m_data.data() : nullptr;
 
-    update(_textureUnit, data);
+    update(rs, _textureUnit, data);
 }
 
-void Texture::update(GLuint _textureUnit, const GLuint* data) {
+void Texture::update(RenderState& rs, GLuint _textureUnit, const GLuint* data) {
 
-    checkValidity();
+    checkValidity(rs);
 
     if (!m_shouldResize && m_dirtyRanges.empty()) {
         return;
@@ -267,9 +236,9 @@ void Texture::update(GLuint _textureUnit, const GLuint* data) {
 
     if (m_glHandle == 0) {
         // texture hasn't been initialized yet, generate it
-        generate(_textureUnit);
+        generate(rs, _textureUnit);
     } else {
-        bind(_textureUnit);
+        bind(rs, _textureUnit);
     }
 
     // resize or push data

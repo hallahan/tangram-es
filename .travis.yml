@@ -3,6 +3,7 @@ language: android
 matrix:
     include:
         - os: osx
+          osx_image: xcode7.3
           env: PLATFORM=osx
           compiler: clang
         - os: linux
@@ -12,6 +13,7 @@ matrix:
               sources: [ 'kubuntu-backports', 'ubuntu-toolchain-r-test', 'george-edison55-precise-backports' ]
               packages: [ 'cmake', 'gcc-4.9', 'g++-4.9', 'xorg-dev', 'libglu1-mesa-dev' ]
         - os: osx
+          osx_image: xcode7.3
           env: PLATFORM=ios
           compiler: clang
         - os: linux
@@ -21,7 +23,8 @@ matrix:
               sources: [ 'kubuntu-backports', 'george-edison55-precise-backports' ]
               packages: [ 'cmake', 'lib32z1-dev', 'lib32stdc++6', 's3cmd' ]
           android:
-            components: [ 'build-tools-21.1.2', 'extra-android-m2repository', 'android-23' ]
+            components: [ 'tools', 'build-tools-24.0.0', 'extra-android-m2repository', 'android-24' ]
+          jdk: oraclejdk8
 
 before_install:
     - git submodule update --init --recursive

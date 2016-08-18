@@ -68,9 +68,9 @@ void View::setCameraType(CameraType _type) {
 
 void View::setSize(int _width, int _height) {
 
-    m_vpWidth = _width;
-    m_vpHeight = _height;
-    m_aspect = (float)_width / (float)_height;
+    m_vpWidth = std::max(_width, 1);
+    m_vpHeight = std::max(_height, 1);
+    m_aspect = (float)m_vpWidth/ (float)m_vpHeight;
     m_dirtyMatrices = true;
     m_dirtyTiles = true;
 
@@ -370,6 +370,18 @@ void View::updateMatrices() {
 
     m_dirtyMatrices = false;
 
+}
+
+glm::vec2 View::lonLatToScreenPosition(double lon, double lat, bool& clipped) {
+    glm::dvec2 meters = m_projection->LonLatToMeters({lon, lat});
+    glm::dvec4 lonLat(meters, 0.0, 1.0);
+
+    lonLat.x = lonLat.x - m_pos.x;
+    lonLat.y = lonLat.y - m_pos.y;
+
+    glm::vec2 screenPosition = worldToScreenSpace(m_viewProj, lonLat, {m_vpWidth, m_vpHeight}, clipped);
+
+    return screenPosition;
 }
 
 void View::updateTiles() {

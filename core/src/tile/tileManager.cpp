@@ -45,14 +45,15 @@ void TileManager::setDataSources(const std::vector<std::shared_ptr<DataSource>>&
     auto it = std::remove_if(
         m_tileSets.begin(), m_tileSets.end(),
         [&](auto& tileSet) {
-            auto sIt = std::find_if(_sources.begin(), _sources.end(),
-                                    [&](auto& source){ return source->name() == tileSet.source->name(); });
+            if (!tileSet.clientDataSource) {
+                auto sIt = std::find_if(_sources.begin(), _sources.end(),
+                                        [&](auto& source){ return source->equals(*tileSet.source); });
 
-            if (sIt == _sources.end() || !(*sIt)->generateGeometry()) {
-                DBG("remove source %s", tileSet.source->name().c_str());
-                return true;
+                if (sIt == _sources.end() || !(*sIt)->generateGeometry()) {
+                    LOGD("remove source %s", tileSet.source->name().c_str());
+                    return true;
+                }
             }
-
             // Clear cache
             tileSet.tiles.clear();
             return false;
@@ -69,17 +70,18 @@ void TileManager::setDataSources(const std::vector<std::shared_ptr<DataSource>>&
                          }) == m_tileSets.end()
                 && source->generateGeometry()) {
 
-            DBG("add source %s", source.second->name().c_str());
-            addDataSource(source);
+            LOGD("add source %s", source->name().c_str());
+
+            m_tileSets.push_back({ source, false });
         }
     }
 }
 
-void TileManager::addDataSource(std::shared_ptr<DataSource> _dataSource) {
-    m_tileSets.push_back({ _dataSource });
+void TileManager::addClientDataSource(std::shared_ptr<DataSource> _dataSource) {
+    m_tileSets.push_back({ _dataSource, true });
 }
 
-bool TileManager::removeDataSource(DataSource& dataSource) {
+bool TileManager::removeClientDataSource(DataSource& dataSource) {
     bool removed = false;
     for (auto it = m_tileSets.begin(); it != m_tileSets.end();) {
         if (it->source.get() == &dataSource) {
@@ -172,7 +174,19 @@ void TileManager::updateTileSet(TileSet& _tileSet, const ViewState& _view,
     std::set<TileID> mappedTiles;
     if (_view.zoom > _tileSet.source->maxZoom()) {
         for (const auto& id : _visibleTiles) {
-            mappedTiles.insert(id.withMaxSourceZoom(_tileSet.source->maxZoom()));
+            auto tile = id.withMaxSourceZoom(_tileSet.source->maxZoom());
+            // Replace tile with same coordinates and lower source zoom
+            auto other = std::find_if(mappedTiles.begin(), mappedTiles.end(),
+                             [&](auto& t) { return tile.x == t.x &&
+                                            tile.y == t.y &&
+                                            tile.z == t.z &&
+                                            tile.wrap == t.wrap; });
+            if (other == mappedTiles.end()) {
+                mappedTiles.insert(tile);
+            } else if (other->s < tile.s) {
+                mappedTiles.erase(other);
+                mappedTiles.insert(tile);
+            }
         }
         visibleTiles = &mappedTiles;
     }

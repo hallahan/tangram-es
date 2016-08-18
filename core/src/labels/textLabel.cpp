@@ -3,80 +3,105 @@
 #include "style/textStyle.h"
 #include "text/fontContext.h"
 #include "gl/dynamicQuadMesh.h"
+#include "util/geom.h"
 
 namespace Tangram {
 
 using namespace LabelProperty;
+using namespace TextLabelProperty;
 
 const float TextVertex::position_scale = 4.0f;
-const float TextVertex::rotation_scale = 4096.0f;
-const float TextVertex::alpha_scale = 255.f;
+const float TextVertex::alpha_scale = 65535.0f;
 
 TextLabel::TextLabel(Label::Transform _transform, Type _type, Label::Options _options,
-                     Anchor _anchor, TextLabel::FontVertexAttributes _attrib,
-                     glm::vec2 _dim,  TextLabels& _labels, Range _vertexRange)
-    : Label(_transform, _dim, _type, _options, _anchor),
+                     TextLabel::FontVertexAttributes _attrib,
+                     glm::vec2 _dim,  TextLabels& _labels, TextRange _textRanges,
+                     Align _preferedAlignment)
+    : Label(_transform, _dim, _type, _options),
       m_textLabels(_labels),
-      m_vertexRange(_vertexRange),
-      m_fontAttrib(_attrib)
-{
-    applyAnchor(_dim, glm::vec2(0.0), _anchor);
+      m_textRanges(_textRanges),
+      m_fontAttrib(_attrib),
+      m_preferedAlignment(_preferedAlignment) {
+
+    applyAnchor(m_options.anchors[0]);
 }
 
-void TextLabel::applyAnchor(const glm::vec2& _dimension, const glm::vec2& _origin, Anchor _anchor) {
-    m_anchor = _origin + LabelProperty::anchorDirection(_anchor) * _dimension * 0.5f;
+void TextLabel::applyAnchor(Anchor _anchor) {
+
+    if (m_preferedAlignment == Align::none) {
+        Align newAlignment = alignFromAnchor(_anchor);
+        m_textRangeIndex = int(newAlignment);
+    } else {
+        m_textRangeIndex = int(m_preferedAlignment);
+    }
+
+    if (m_textRanges[m_textRangeIndex].length == 0) {
+        m_textRangeIndex = 0;
+    }
+
+    glm::vec2 offset = m_dim;
+    if (m_parent) { offset += m_parent->dimension(); }
+
+    m_anchor = LabelProperty::anchorDirection(_anchor) * offset * 0.5f;
+
 }
 
 void TextLabel::updateBBoxes(float _zoomFract) {
 
-    m_obb = OBB(m_transform.state.screenPos.x,
-                m_transform.state.screenPos.y,
-                m_transform.state.rotation,
-                m_dim.x - m_options.buffer,
-                m_dim.y - m_options.buffer);
+    glm::vec2 dim = m_dim - m_options.buffer;
 
-    m_aabb = m_obb.getExtent();
-}
+    if (m_occludedLastFrame) { dim += Label::activation_distance_threshold; }
 
-void TextLabel::align(glm::vec2& _screenPosition, const glm::vec2& _ap1, const glm::vec2& _ap2) {
+    // FIXME: Only for testing
+    if (state() == State::dead) { dim -= 4; }
 
-    switch (m_type) {
-        case Type::debug:
-        case Type::point: {
-            _screenPosition += m_anchor;
-            break;
-        }
-        case Type::line: {
-            // anchor at line center
-            _screenPosition = (_ap1 + _ap2) * 0.5f;
-            break;
-        }
-    }
+    glm::vec2 screenPosition = m_transform.state.screenPos;
+    screenPosition += m_anchor;
+
+    m_obb = OBB(screenPosition,
+                glm::vec2{m_transform.state.rotation.x, -m_transform.state.rotation.y},
+                dim.x, dim.y);
 }
 
 void TextLabel::pushTransform() {
     if (!visibleState()) { return; }
 
+    glm::vec2 rotation = m_transform.state.rotation;
+    bool rotate = (rotation.x != 1.f);
+
     TextVertex::State state {
         m_fontAttrib.fill,
         m_fontAttrib.stroke,
-        glm::i16vec2(m_transform.state.screenPos * TextVertex::position_scale),
-        uint8_t(m_transform.state.alpha * TextVertex::alpha_scale),
-        uint8_t(m_fontAttrib.fontScale),
-        int16_t(m_transform.state.rotation * TextVertex::rotation_scale)
+        uint16_t(m_transform.state.alpha * TextVertex::alpha_scale),
+        uint16_t(m_fontAttrib.fontScale),
     };
 
-    auto it = m_textLabels.quads.begin() + m_vertexRange.start;
-    auto end = it + m_vertexRange.length;
+    auto it = m_textLabels.quads.begin() + m_textRanges[m_textRangeIndex].start;
+    auto end = it + m_textRanges[m_textRangeIndex].length;
     auto& style = m_textLabels.style;
+
+    glm::vec2 screenPosition = m_transform.state.screenPos;
+    screenPosition += m_anchor;
+
+    glm::i16vec2 sp = glm::i16vec2(screenPosition * TextVertex::position_scale);
+    auto& meshes = style.getMeshes();
 
     for (; it != end; ++it) {
         auto quad = *it;
 
-        auto* quadVertices = style.getMesh(it->atlas).pushQuad();
+        if (it->atlas >= meshes.size()) {
+            LOGE("Accesing inconsistent quad mesh (id:%u, size:%u)",
+                 it->atlas, meshes.size());
+            break;
+        }
+        auto* quadVertices = meshes[it->atlas]->pushQuad();
         for (int i = 0; i < 4; i++) {
             TextVertex& v = quadVertices[i];
-            v.pos = quad.quad[i].pos;
+            if (rotate) {
+                v.pos = sp + glm::i16vec2{rotateBy(quad.quad[i].pos, rotation)};
+            } else {
+                v.pos = sp + quad.quad[i].pos;
+            }
             v.uv = quad.quad[i].uv;
             v.state = state;
         }
@@ -87,8 +112,8 @@ TextLabels::~TextLabels() {
     style.context()->releaseAtlas(m_atlasRefs);
 }
 
-void TextLabels::setQuads(std::vector<GlyphQuad>& _quads, std::bitset<FontContext::max_textures> _atlasRefs) {
-    quads.insert(quads.end(), _quads.begin(), _quads.end());
+void TextLabels::setQuads(std::vector<GlyphQuad>&& _quads, std::bitset<FontContext::max_textures> _atlasRefs) {
+    quads = std::move(_quads);
     m_atlasRefs = _atlasRefs;
 
 }

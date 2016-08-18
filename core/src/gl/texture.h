@@ -1,12 +1,15 @@
 #pragma once
 
 #include "gl.h"
+#include "gl/disposer.h"
 
 #include <vector>
 #include <memory>
 #include <string>
 
 namespace Tangram {
+
+class RenderState;
 
 struct TextureFiltering {
     GLenum min;
@@ -40,11 +43,7 @@ public:
 
     Texture(const unsigned char* data, size_t dataSize,
             TextureOptions _options = DEFAULT_TEXTURE_OPTION},
-            bool _generateMipmaps = false, bool _flipOnLoad = false);
-
-    Texture(const std::string& _file,
-            TextureOptions _options = DEFAULT_TEXTURE_OPTION},
-            bool _generateMipmaps = false, bool _flipOnLoad = false);
+            bool _generateMipmaps = false);
 
     Texture(Texture&& _other);
     Texture& operator=(Texture&& _other);
@@ -52,9 +51,9 @@ public:
     virtual ~Texture();
 
     /* Perform texture updates, should be called at least once and after adding data or resizing */
-    virtual void update(GLuint _textureSlot);
+    virtual void update(RenderState& rs, GLuint _textureSlot);
 
-    virtual void update(GLuint _textureSlot, const GLuint* data);
+    virtual void update(RenderState& rs, GLuint _textureSlot, const GLuint* data);
 
     /* Resize the texture */
     void resize(const unsigned int _width, const unsigned int _height);
@@ -63,7 +62,7 @@ public:
     unsigned int getWidth() const { return m_width; }
     unsigned int getHeight() const { return m_height; }
 
-    void bind(GLuint _unit);
+    void bind(RenderState& rs, GLuint _unit);
 
     void setDirty(size_t yOffset, size_t height);
 
@@ -80,10 +79,7 @@ public:
                     uint16_t _width, uint16_t _height, uint16_t _stride);
 
     /* Checks whether the texture has valid data and has been successfully uploaded to GPU */
-    bool isValid() const;
-
-    /* Checks whether the texture has a valid data to upload to GPU */
-    bool hasValidData() const;
+    bool isValid(RenderState& rs) const;
 
     typedef std::pair<GLuint, GLuint> TextureSlot;
 
@@ -91,12 +87,12 @@ public:
 
     static bool isRepeatWrapping(TextureWrapping _wrapping);
 
-    void loadImageFromMemory(const unsigned char* blob, unsigned int size, bool flipOnLoad);
+    bool loadImageFromMemory(const unsigned char* blob, unsigned int size);
 
 protected:
 
-    void generate(GLuint _textureUnit);
-    void checkValidity();
+    void generate(RenderState& rs, GLuint _textureUnit);
+    void checkValidity(RenderState& rs);
 
     TextureOptions m_options;
     std::vector<GLuint> m_data;
@@ -117,12 +113,13 @@ protected:
 
     int m_generation;
 
+    Disposer m_disposer;
+
 private:
 
     size_t bytesPerPixel();
 
     bool m_generateMipmaps;
-    bool m_validData;
 };
 
 }

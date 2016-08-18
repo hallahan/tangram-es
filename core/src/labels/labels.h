@@ -11,7 +11,10 @@
 #include <mutex>
 #include <vector>
 #include <map>
+#include <unordered_map>
 #include <set>
+
+#define PERF_TRACE __attribute__ ((noinline))
 
 namespace Tangram {
 
@@ -29,13 +32,13 @@ public:
 
     virtual ~Labels();
 
-    void drawDebug(const View& _view);
+    void drawDebug(RenderState& rs, const View& _view);
 
     void updateLabelSet(const View& _view, float _dt, const std::vector<std::unique_ptr<Style>>& _styles,
-                        const std::vector<std::shared_ptr<Tile>>& _tiles, std::unique_ptr<TileCache>& _cache);
+                        const std::vector<std::shared_ptr<Tile>>& _tiles, TileCache& _cache);
 
-    void updateLabels(const View& _view, float _dt, const std::vector<std::unique_ptr<Style>>& _styles,
-                      const std::vector<std::shared_ptr<Tile>>& _tiles, bool _onlyTransitions = true);
+    PERF_TRACE void updateLabels(const View& _view, float _dt, const std::vector<std::unique_ptr<Style>>& _styles,
+                                 const std::vector<std::shared_ptr<Tile>>& _tiles, bool _onlyTransitions = true);
 
     const std::vector<TouchItem>& getFeaturesAtPoint(const View& _view, float _dt,
                                                      const std::vector<std::unique_ptr<Style>>& _styles,
@@ -44,7 +47,7 @@ public:
 
     bool needUpdate() const { return m_needUpdate; }
 
-private:
+protected:
 
     using AABB = isect2d::AABB<glm::vec2>;
     using OBB = isect2d::OBB<glm::vec2>;
@@ -53,23 +56,41 @@ private:
 
     void skipTransitions(const std::vector<std::unique_ptr<Style>>& _styles,
                          const std::vector<std::shared_ptr<Tile>>& _tiles,
-                         std::unique_ptr<TileCache>& _cache, float _currentZoom) const;
+                         TileCache& _cache, float _currentZoom) const;
 
-    void skipTransitions(const std::vector<const Style*>& _styles, Tile& _tile, Tile& _proxy) const;
+    PERF_TRACE void skipTransitions(const std::vector<const Style*>& _styles, Tile& _tile, Tile& _proxy) const;
 
-    void checkRepeatGroups(std::vector<Label*>& _visibleSet) const;
+    PERF_TRACE void sortLabels();
 
-    int LODDiscardFunc(float _maxZoom, float _zoom);
+    PERF_TRACE void handleOcclusions(const View& _view);
+
+    PERF_TRACE bool withinRepeatDistance(Label *_label);
 
     bool m_needUpdate;
-
-    // temporary data used in update()
-    std::vector<Label*> m_labels;
-    std::vector<AABB> m_aabbs;
 
     isect2d::ISect2D<glm::vec2> m_isect2d;
 
     std::vector<TouchItem> m_touchItems;
+
+    struct LabelEntry {
+
+        LabelEntry(Label* _label, Tile* _tile, bool _proxy)
+            : label(_label),
+              tile(_tile),
+              priority(_label->options().priority),
+              proxy(_proxy) {}
+
+        Label* label;
+        Tile* tile;
+        float priority;
+        bool proxy;
+    };
+
+    static bool labelComparator(const LabelEntry& _a, const LabelEntry& _b);
+
+    std::vector<LabelEntry> m_labels;
+
+    std::unordered_map<size_t, std::vector<Label*>> m_repeatGroups;
 
     float m_lastZoom;
 };

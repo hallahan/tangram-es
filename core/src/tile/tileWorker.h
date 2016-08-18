@@ -1,6 +1,7 @@
 #pragma once
 
 #include "tile/tileTask.h"
+#include "util/jobQueue.h"
 
 #include <memory>
 #include <vector>
@@ -11,6 +12,7 @@
 
 namespace Tangram {
 
+class JobQueue;
 class Scene;
 class TileBuilder;
 
@@ -47,7 +49,6 @@ private:
 
     std::mutex m_mutex;
     std::vector<std::shared_ptr<TileTask>> m_queue;
-
 };
 
 }

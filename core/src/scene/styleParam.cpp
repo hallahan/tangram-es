@@ -2,6 +2,7 @@
 
 #include "csscolorparser.hpp"
 #include "platform.h"
+#include "style/textStyle.h"
 #include "util/builders.h" // for cap, join
 #include "util/extrude.h"
 #include "util/geom.h" // for CLAMP
@@ -33,6 +34,7 @@ const std::map<std::string, StyleParamKey> s_StyleParamMap = {
     {"outline:order", StyleParamKey::outline_order},
     {"outline:width", StyleParamKey::outline_width},
     {"outline:style", StyleParamKey::outline_style},
+    {"outline:visible", StyleParamKey::outline_visible},
     {"priority", StyleParamKey::priority},
     {"size", StyleParamKey::size},
     {"sprite", StyleParamKey::sprite},
@@ -42,7 +44,9 @@ const std::map<std::string, StyleParamKey> s_StyleParamMap = {
     {"text:collide", StyleParamKey::text_collide},
     {"text:interactive", StyleParamKey::text_interactive},
     {"text:offset", StyleParamKey::text_offset},
+    {"text:order", StyleParamKey::text_order},
     {"text:priority", StyleParamKey::text_priority},
+    {"text:visible", StyleParamKey::text_visible},
     {"text:align", StyleParamKey::text_align},
     {"text:repeat_distance", StyleParamKey::text_repeat_distance},
     {"text:repeat_group", StyleParamKey::text_repeat_group},
@@ -58,14 +62,13 @@ const std::map<std::string, StyleParamKey> s_StyleParamMap = {
     {"text:font:style", StyleParamKey::text_font_style},
     {"text:font:transform", StyleParamKey::text_transform},
     {"text:font:weight", StyleParamKey::text_font_weight},
+    {"text:required", StyleParamKey::text_required},
     {"text:transition:hide:time", StyleParamKey::text_transition_hide_time},
     {"text:transition:selected:time", StyleParamKey::text_transition_selected_time},
     {"text:transition:show:time", StyleParamKey::text_transition_show_time},
     {"align", StyleParamKey::text_align},
     {"repeat_distance", StyleParamKey::text_repeat_distance},
     {"repeat_group", StyleParamKey::text_repeat_group},
-    {"text_source", StyleParamKey::text_source},
-    {"text_wrap", StyleParamKey::text_wrap},
     {"text_source", StyleParamKey::text_source},
     {"text_wrap", StyleParamKey::text_wrap},
     {"font:family", StyleParamKey::text_font_family},
@@ -198,9 +201,22 @@ StyleParam::Value StyleParam::parseString(StyleParamKey key, const std::string& 
         std::transform(normalized.begin(), normalized.end(), normalized.begin(), ::tolower);
         return normalized;
     }
-    case StyleParamKey::text_align:
     case StyleParamKey::anchor:
-    case StyleParamKey::text_anchor:
+    case StyleParamKey::text_anchor: {
+        LabelProperty::Anchors anchors;
+        for (auto& anchor : splitString(_value, ',')) {
+            if (anchors.count == LabelProperty::max_anchors) { break; }
+
+            LabelProperty::Anchor labelAnchor;
+            if (LabelProperty::anchor(anchor, labelAnchor)) {
+                anchors.anchor[anchors.count++] = labelAnchor;
+            } else {
+                LOG("Invalid anchor %s", anchor.c_str());
+            }
+        }
+        return anchors;
+    }
+    case StyleParamKey::text_align:
     case StyleParamKey::text_source:
     case StyleParamKey::text_transform:
     case StyleParamKey::sprite:
@@ -221,11 +237,17 @@ StyleParam::Value StyleParam::parseString(StyleParamKey key, const std::string& 
     case StyleParamKey::text_interactive:
     case StyleParamKey::tile_edges:
     case StyleParamKey::visible:
+    case StyleParamKey::text_visible:
+    case StyleParamKey::outline_visible:
     case StyleParamKey::collide:
+    case StyleParamKey::text_required:
     case StyleParamKey::text_collide:
         if (_value == "true") { return true; }
         if (_value == "false") { return false; }
-        LOGW("Bool value required for capitalized/visible. Using Default.");
+        LOGW("Invalid boolean value %s for key %s", _value.c_str(), StyleParam::keyName(key).c_str());
+        break;
+    case StyleParamKey::text_order:
+        LOGW("text:order parameter is ignored.");
         break;
     case StyleParamKey::order:
     case StyleParamKey::outline_order:
@@ -342,16 +364,20 @@ std::string StyleParam::toString() const {
     case StyleParamKey::sprite_default:
     case StyleParamKey::style:
     case StyleParamKey::text_align:
-    case StyleParamKey::anchor:
-    case StyleParamKey::text_anchor:
         if (!value.is<std::string>()) break;
         return k + value.get<std::string>();
+    case StyleParamKey::anchor:
+    case StyleParamKey::text_anchor:
+        return "[anchor]"; // TODO
     case StyleParamKey::interactive:
     case StyleParamKey::text_interactive:
     case StyleParamKey::tile_edges:
     case StyleParamKey::visible:
+    case StyleParamKey::text_visible:
+    case StyleParamKey::outline_visible:
     case StyleParamKey::centroid:
     case StyleParamKey::collide:
+    case StyleParamKey::text_required:
     case StyleParamKey::text_collide:
         if (!value.is<bool>()) break;
         return k + std::to_string(value.get<bool>());
@@ -362,6 +388,7 @@ std::string StyleParam::toString() const {
         if (!value.is<Width>()) break;
         return k + std::to_string(value.get<Width>().value);
     case StyleParamKey::order:
+    case StyleParamKey::text_order:
     case StyleParamKey::outline_order:
     case StyleParamKey::priority:
     case StyleParamKey::text_priority:
@@ -478,7 +505,7 @@ bool StyleParam::parseVec2(const std::string& _value, const std::vector<Unit> un
     }
     _vec.units[1] = v2.unit;
     _vec.value = { v1.value, v2.value };
-    
+
     return true;
 }
 
@@ -514,7 +541,7 @@ bool StyleParam::parseVec3(const std::string& _value, const std::vector<Unit> un
         _vec.value = { v1.value, v2.value, NAN };
         return true;
     }
-    
+
     if (std::find(units.begin(), units.end(), v3.unit) == units.end()) {
         return false;
     }

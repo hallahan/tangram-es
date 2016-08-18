@@ -18,6 +18,7 @@
 
 #include <bitset>
 #include <mutex>
+#include <atomic>
 
 namespace Tangram {
 
@@ -39,6 +40,28 @@ struct GlyphTexture {
 
     bool dirty = false;
     size_t refCount = 0;
+};
+
+struct FontDescription {
+    std::string uri;
+    std::string alias;
+    std::string bundleAlias;
+
+    FontDescription(std::string family, std::string style, std::string weight, std::string uri)
+        : uri(uri) {
+        alias = Alias(family, style, weight);
+        bundleAlias = BundleAlias(family, style, weight);
+    }
+
+    static std::string Alias(const std::string& family, const std::string& style, const std::string& weight) {
+        return family + "_" + weight + "_" + style;
+    }
+
+    static std::string BundleAlias(const std::string& family, const std::string& style, const std::string& weight) {
+        // TODO: support .woff on bundle fonts
+        std::string alias = family + "-" + weight + style + ".ttf";
+        return alias;
+    }
 };
 
 class FontContext : public alfons::TextureCallback {
@@ -67,9 +90,9 @@ public:
     alfons::GlyphAtlas& atlas() { return m_atlas; }
 
     /* Update all textures batches, uploads the data to the GPU */
-    void updateTextures();
+    void updateTextures(RenderState& rs);
 
-    std::shared_ptr<alfons::Font> getFont(const std::string& _name, const std::string& _style,
+    std::shared_ptr<alfons::Font> getFont(const std::string& _family, const std::string& _style,
                                           const std::string& _weight, float _size);
 
     size_t glyphTextureCount() {
@@ -77,12 +100,13 @@ public:
         return m_textures.size();
     }
 
-    void bindTexture(alfons::AtlasID _id, GLuint _unit);
+    void bindTexture(RenderState& rs, alfons::AtlasID _id, GLuint _unit);
 
     float maxStrokeWidth() { return m_sdfRadius; }
 
     bool layoutText(TextStyle::Parameters& _params, const std::string& _text,
-                    std::vector<GlyphQuad>& _quads, std::bitset<max_textures>& _refs, glm::vec2& _bbox);
+                    std::vector<GlyphQuad>& _quads, std::bitset<max_textures>& _refs,
+                    glm::vec2& _bbox, TextRange& _textRanges);
 
     struct ScratchBuffer : public alfons::MeshCallback {
         void drawGlyph(const alfons::Quad& q, const alfons::AtlasGlyph& altasGlyph) override {}
@@ -90,7 +114,16 @@ public:
         std::vector<GlyphQuad>* quads;
     };
 
+    void setSceneResourceRoot(const std::string& sceneResourceRoot) { m_sceneResourceRoot = sceneResourceRoot; }
+
+    void fetch(const FontDescription& _ft);
+
+    std::atomic_ushort resourceLoad;
+
 private:
+
+    bool loadFontAlloc(const std::string& _bundleFontPath, unsigned char* _data, size_t& _dataSize);
+
     float m_sdfRadius;
     ScratchBuffer m_scratch;
     std::vector<unsigned char> m_sdfBuffer;
@@ -112,6 +145,8 @@ private:
     // textures and a MeshCallback implemented by TextStyleBuilder for adding glyph quads.
     alfons::TextBatch m_batch;
     TextWrapper m_textWrapper;
+    std::string m_sceneResourceRoot = "";
+
 };
 
 }

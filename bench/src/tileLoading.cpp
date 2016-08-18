@@ -38,8 +38,8 @@ struct TestContext {
     std::unique_ptr<TileBuilder> tileBuilder;
 
     void loadScene(const char* sceneFile) {
-        auto sceneRelPath = setResourceRoot(sceneFile);
-        auto sceneString = stringFromFile(sceneRelPath.c_str(), PathType::resource);
+        scene = std::make_shared<Scene>(sceneFile);
+        auto sceneString = stringFromFile(sceneFile);
 
         YAML::Node sceneNode;
 
@@ -48,8 +48,7 @@ struct TestContext {
             LOGE("Parsing scene config '%s'", e.what());
             return;
         }
-        scene = std::make_shared<Scene>();
-        SceneLoader::applyConfig(sceneNode, *scene);
+        SceneLoader::applyConfig(sceneNode, scene);
 
         styleContext.initFunctions(*scene);
         styleContext.setKeywordZoom(0);
