@@ -14,12 +14,12 @@ protected:
 
     void constructURL(const TileID& _tileCoord, std::string& _url) const override;
 
-    Scene m_scene;
-    
+    std::shared_ptr<Scene> m_scene;
+
 public:
         
     OsmXmlSource(const std::string& _name, const std::string& _urlTemplate, int32_t _maxZoom,
-                 const Scene& _scene);
+                 const std::shared_ptr<Scene> _scene);
         
 };
     

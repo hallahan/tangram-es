@@ -13,7 +13,7 @@
 namespace Tangram {
 
 OsmXmlSource::OsmXmlSource(const std::string& _name, const std::string& _urlTemplate, 
-                           int32_t _maxZoom, const Scene& _scene) :
+                           int32_t _maxZoom, const std::shared_ptr<Scene> _scene) :
     DataSource(_name, _urlTemplate, _maxZoom), m_scene(_scene) {
 }
 
@@ -51,7 +51,7 @@ std::shared_ptr<TileData> OsmXmlSource::parse(const TileTask& _task,
 
 void OsmXmlSource::constructURL(const TileID& _tileCoord, std::string& _url) const {
     _url.assign(m_urlTemplate);
-    BoundingBox tileBounds = m_scene.mapProjection()->TileLonLatBounds(_tileCoord);
+    BoundingBox tileBounds = m_scene->mapProjection()->TileLonLatBounds(_tileCoord);
     // Something is funky about what we're getting from TileLonLatBounds,
     // but this works... (I'm guessing it's thinking in TMS rathar Google Tiles?)
     double l = tileBounds.min.x;
