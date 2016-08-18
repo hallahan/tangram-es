@@ -34,8 +34,7 @@ public:
         uint32_t maxLineWidth = 15;
 
         TextLabelProperty::Transform transform = TextLabelProperty::Transform::none;
-        TextLabelProperty::Align align = TextLabelProperty::Align::center;
-        LabelProperty::Anchor anchor = LabelProperty::Anchor::center;
+        TextLabelProperty::Align align = TextLabelProperty::Align::none;
 
         float fontScale = 1;
         float lineSpacing = 0;
@@ -73,23 +72,23 @@ public:
     /* Upload the buffers of the text batches
      * Upload the texture atlases
      */
-    void onBeginFrame() override;
+    void onBeginFrame(RenderState& rs) override;
 
     /* Performs the actual drawing of the meshes in two passes
      * - First pass if signed distance field is on, draw outlines
      * - Second pass, draw the inner glyph pixels
      */
-    void onBeginDrawFrame(const View& _view, Scene& _scene) override;
+    void onBeginDrawFrame(RenderState& rs, const View& _view, Scene& _scene) override;
 
     std::unique_ptr<StyleBuilder> createBuilder() const override;
 
     DynamicQuadMesh<TextVertex>& getMesh(size_t id) const;
 
+    auto& getMeshes() const { return m_meshes; }
+
     virtual size_t dynamicMeshSize() const override;
 
     virtual ~TextStyle() override;
-
-    Parameters defaultUnifiedParams() const;
 
 private:
 
@@ -117,7 +116,6 @@ namespace std {
             hash_combine(seed, p.maxLineWidth);
             hash_combine(seed, int(p.transform));
             hash_combine(seed, int(p.align));
-            hash_combine(seed, int(p.anchor));
             hash_combine(seed, optionsHash(p.labelOptions));
             return seed;
         }

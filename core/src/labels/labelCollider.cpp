@@ -63,7 +63,7 @@ void LabelCollider::process() {
               [](auto* l1, auto* l2) {
                   if (l1->options().priority != l2->options().priority) {
                       // lower numeric priority means higher priority
-                      return l1->options().priority > l2->options().priority;
+                      return l1->options().priority < l2->options().priority;
                   }
                   if (l1->options().repeatGroup != l2->options().repeatGroup) {
                       return l1->options().repeatGroup < l2->options().repeatGroup;
@@ -123,7 +123,7 @@ void LabelCollider::process() {
 
                   if (l1->options().priority != l2->options().priority) {
                       // lower numeric priority means higher priority
-                      return l1->options().priority > l2->options().priority;
+                      return l1->options().priority < l2->options().priority;
                   }
 
                   if (l1->type() == Label::Type::line &&
@@ -166,6 +166,10 @@ void LabelCollider::process() {
             }
         }
 
+        // Dont let parents occlude their child
+        if (l1->parent() == l2 || l2->parent() == l1) {
+            continue;
+        }
         if (l1->parent() && l1->parent()->isOccluded()) {
             l1->occlude();
         }
@@ -203,14 +207,20 @@ void LabelCollider::process() {
     for (auto* label : m_labels) {
 
         // Manage link occlusion (unified icon labels)
-        if (label->parent() && label->parent()->isOccluded()) {
-            label->occlude();
+        if (label->parent()) {
+            // First check if the child is required is occluded
+            if (label->parent()->isOccluded()) {
+                label->occlude();
+            } else if (label->options().required && label->isOccluded()) {
+                label->parent()->occlude();
+                label->parent()->enterState(Label::State::dead, 0.0f);
+            }
         }
 
         if (label->isOccluded()) {
             label->enterState(Label::State::dead, 0.0f);
         } else {
-            label->enterState(Label::State::wait_occ, 0.0f);
+            label->enterState(Label::State::none, 0.0f);
         }
     }
 

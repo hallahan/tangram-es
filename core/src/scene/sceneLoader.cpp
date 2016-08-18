@@ -59,6 +59,7 @@ bool SceneLoader::loadScene(std::shared_ptr<Scene> _scene) {
 
     if ((root = sceneImporter.applySceneImports(_scene->path(), _scene->resourceRoot())) ) {
         applyConfig(root, _scene);
+
         return true;
     }
     return false;
@@ -197,6 +198,17 @@ bool SceneLoader::applyConfig(Node& config, const std::shared_ptr<Scene>& _scene
         }
     }
 
+    if (Node fonts = config["fonts"]) {
+        if (fonts.IsMap()) {
+            for (const auto& font : fonts) {
+                try { loadFont(font, _scene); }
+                catch (YAML::RepresentationException e) {
+                    LOGNode("Parsing font: '%s'", font, e.what());
+                }
+            }
+        }
+    }
+
     if (Node styles = config["styles"]) {
         StyleMixer mixer;
         try {
@@ -302,8 +314,14 @@ void SceneLoader::loadShaderConfig(Node shaders, Style& style, const std::shared
             const std::string& name = define.first.Scalar();
 
             // undefine any previous definitions
-            shader.addSourceBlock("defines", "#undef " + name);
-
+            {
+                auto pos = name.find('(');
+                if (pos == std::string::npos) {
+                    shader.addSourceBlock("defines", "#undef " + name);
+                } else {
+                    shader.addSourceBlock("defines", "#undef " + name.substr(0, pos));
+                }
+            }
             bool bValue;
 
             if (getBool(define.second, bValue)) {
@@ -537,22 +555,22 @@ std::shared_ptr<Texture> SceneLoader::fetchTexture(const std::string& name, cons
     std::smatch match;
     // TODO: generalize using URI handlers
     if (std::regex_search(url, match, r)) {
-        scene->m_resourceLoad++;
+        scene->resourceLoad++;
         startUrlRequest(url, [=](std::vector<char>&& rawData) {
                 auto ptr = (unsigned char*)(rawData.data());
                 size_t dataSize = rawData.size();
                 std::lock_guard<std::mutex> lock(m_textureMutex);
-				auto texture = scene->getTexture(name);
+                auto texture = scene->getTexture(name);
                 if (texture) {
-                    if (!texture->loadImageFromMemory(ptr, dataSize, false)) {
+                    if (!texture->loadImageFromMemory(ptr, dataSize)) {
                         LOGE("Invalid texture data '%s'", url.c_str());
                     }
 
                     updateSpriteNodes(name, texture, scene);
-                    scene->m_resourceLoad--;
+                    scene->resourceLoad--;
                 }
             });
-        texture = std::make_shared<Texture>(nullptr, 0, options, generateMipmaps, true);
+        texture = std::make_shared<Texture>(nullptr, 0, options, generateMipmaps);
     } else {
 
         if (url.substr(0, 22) == "data:image/png;base64,") {
@@ -573,7 +591,7 @@ std::shared_ptr<Texture> SceneLoader::fetchTexture(const std::string& name, cons
             }
             texture = std::make_shared<Texture>(0, 0, options, generateMipmaps);
 
-            if (!texture->loadImageFromMemory(blob.data(), blob.size(), false)) {
+            if (!texture->loadImageFromMemory(blob.data(), blob.size())) {
                 LOGE("Invalid Base64 texture");
             }
 
@@ -587,7 +605,7 @@ std::shared_ptr<Texture> SceneLoader::fetchTexture(const std::string& name, cons
             }
             texture = std::make_shared<Texture>(0, 0, options, generateMipmaps);
 
-            if (!texture->loadImageFromMemory(blob, size, false)) {
+            if (!texture->loadImageFromMemory(blob, size)) {
                 LOGE("Invalid texture data '%s'", url.c_str());
             }
             free(blob);
@@ -656,6 +674,54 @@ void SceneLoader::loadTexture(const std::pair<Node, Node>& node, const std::shar
         scene->spriteAtlases()[name] = atlas;
     }
     scene->textures().emplace(name, texture);
+}
+
+void loadFontDescription(const Node& node, const std::string& family, const std::shared_ptr<Scene>& scene) {
+    if (node.IsMap()) {
+        auto& fontContext = scene->fontContext();
+        std::string style = "normal", weight = "400", uri;
+
+        for (const auto& fontDesc : node) {
+            const std::string& key = fontDesc.first.Scalar();
+            if (key == "weight") {
+                weight = fontDesc.second.Scalar();
+            } else if (key == "style") {
+                style = fontDesc.second.Scalar();
+            } else if (key == "url") {
+                uri = fontDesc.second.Scalar();
+            } else if (key == "external") {
+                LOGW("external: within fonts: is a no-op in native version of tangram (%s)", family.c_str());
+            }
+        }
+
+        if (uri.empty()) {
+            LOGW("Empty url: block within fonts: (%s)", family.c_str());
+            return;
+        }
+
+        std::string familyNormalized, styleNormalized;
+
+        familyNormalized.resize(family.size());
+        styleNormalized.resize(style.size());
+
+        std::transform(family.begin(), family.end(), familyNormalized.begin(), ::tolower);
+        std::transform(style.begin(), style.end(), styleNormalized.begin(), ::tolower);
+
+        // Download/Load the font and add it to the context
+        fontContext->fetch(FontDescription(familyNormalized, styleNormalized, weight, uri));
+    }
+}
+
+void SceneLoader::loadFont(const std::pair<Node, Node>& font, const std::shared_ptr<Scene>& scene) {
+    const std::string& family = font.first.Scalar();
+
+    if (font.second.IsMap()) {
+        loadFontDescription(font.second, family, scene);
+    } else if (font.second.IsSequence()) {
+        for (const auto& node : font.second) {
+            loadFontDescription(node, family, scene);
+        }
+    }
 }
 
 void SceneLoader::loadStyleProps(Style& style, Node styleNode, const std::shared_ptr<Scene>& scene) {
@@ -738,7 +804,7 @@ void SceneLoader::loadStyleProps(Style& style, Node styleNode, const std::shared
             const std::string& textureName = textureNode.Scalar();
             auto& atlases = scene->spriteAtlases();
             auto atlasIt = atlases.find(textureName);
-			auto styleTexture = scene->getTexture(textureName);
+            auto styleTexture = scene->getTexture(textureName);
             if (atlasIt != atlases.end()) {
                 pointStyle->setSpriteAtlas(atlasIt->second);
             } else if (styleTexture){
@@ -1135,8 +1201,7 @@ Filter SceneLoader::generateFilter(Node _filter, Scene& scene) {
         const std::string& val = _filter.Scalar();
 
         if (val.compare(0, 8, "function") == 0) {
-            scene.functions().push_back(val);
-            return Filter::MatchFunction(scene.functions().size()-1);
+            return Filter::MatchFunction(scene.addJsFunction(val));
         }
         break;
     }
@@ -1281,8 +1346,8 @@ void SceneLoader::parseStyleParams(Node params, const std::shared_ptr<Scene>& sc
         } else {
             key = prop.first.Scalar();
         }
-        if (key == "transition") {
-            parseTransition(prop.second, scene, out);
+        if (key == "transition" || key == "text:transition") {
+            parseTransition(prop.second, scene, key, out);
             continue;
         }
 
@@ -1299,8 +1364,7 @@ void SceneLoader::parseStyleParams(Node params, const std::shared_ptr<Scene>& sc
 
             if (val.compare(0, 8, "function") == 0) {
                 StyleParam param(key, "");
-                param.function = scene->functions().size();
-                scene->functions().push_back(val);
+                param.function = scene->addJsFunction(val);
                 out.push_back(std::move(param));
             } else {
                 out.push_back(StyleParam{ key, val });
@@ -1433,31 +1497,31 @@ bool SceneLoader::parseStyleUniforms(const Node& value, const std::shared_ptr<Sc
     return true;
 }
 
-void SceneLoader::parseTransition(Node params, const std::shared_ptr<Scene>& scene, std::vector<StyleParam>& out) {
-
-    static const std::string prefix = "transition";
+void SceneLoader::parseTransition(Node params, const std::shared_ptr<Scene>& scene, std::string _prefix, std::vector<StyleParam>& out) {
 
     for (const auto& prop : params) {
-        if (!prop.first) {
-            continue;
-        }
-        auto keys = prop.first.as<std::vector<std::string>>();
+        if (!prop.first) { continue; }
+        std::vector<std::string> keys;
 
+        if (prop.first.IsScalar()) {
+            keys.push_back(prop.first.as<std::string>());
+        } else if (prop.first.IsSequence()) {
+            keys = prop.first.as<std::vector<std::string>>();
+        }
         for (const auto& key : keys) {
             std::string prefixedKey;
             switch (prop.first.Type()) {
-                case YAML::NodeType::Sequence:
-                    prefixedKey = prefix + DELIMITER + key;
-                    break;
-                case YAML::NodeType::Scalar:
-                    prefixedKey = prefix + DELIMITER + prop.first.as<std::string>();
-                    break;
-                default:
-                    LOGW("Expected a scalar or sequence value for transition");
-                    continue;
-                    break;
+            case YAML::NodeType::Sequence:
+                prefixedKey = _prefix + DELIMITER + key;
+                break;
+            case YAML::NodeType::Scalar:
+                prefixedKey = _prefix + DELIMITER + prop.first.as<std::string>();
+                break;
+            default:
+                LOGW("Expected a scalar or sequence value for transition");
+                continue;
+                break;
             }
-
             for (auto child : prop.second) {
                 auto childKey = prefixedKey + DELIMITER + child.first.as<std::string>();
                 out.push_back(StyleParam{ childKey, child.second.as<std::string>() });

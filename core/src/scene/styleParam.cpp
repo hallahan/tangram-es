@@ -2,6 +2,7 @@
 
 #include "csscolorparser.hpp"
 #include "platform.h"
+#include "style/textStyle.h"
 #include "util/builders.h" // for cap, join
 #include "util/extrude.h"
 #include "util/geom.h" // for CLAMP
@@ -61,6 +62,7 @@ const std::map<std::string, StyleParamKey> s_StyleParamMap = {
     {"text:font:style", StyleParamKey::text_font_style},
     {"text:font:transform", StyleParamKey::text_transform},
     {"text:font:weight", StyleParamKey::text_font_weight},
+    {"text:required", StyleParamKey::text_required},
     {"text:transition:hide:time", StyleParamKey::text_transition_hide_time},
     {"text:transition:selected:time", StyleParamKey::text_transition_selected_time},
     {"text:transition:show:time", StyleParamKey::text_transition_show_time},
@@ -199,9 +201,22 @@ StyleParam::Value StyleParam::parseString(StyleParamKey key, const std::string& 
         std::transform(normalized.begin(), normalized.end(), normalized.begin(), ::tolower);
         return normalized;
     }
-    case StyleParamKey::text_align:
     case StyleParamKey::anchor:
-    case StyleParamKey::text_anchor:
+    case StyleParamKey::text_anchor: {
+        LabelProperty::Anchors anchors;
+        for (auto& anchor : splitString(_value, ',')) {
+            if (anchors.count == LabelProperty::max_anchors) { break; }
+
+            LabelProperty::Anchor labelAnchor;
+            if (LabelProperty::anchor(anchor, labelAnchor)) {
+                anchors.anchor[anchors.count++] = labelAnchor;
+            } else {
+                LOG("Invalid anchor %s", anchor.c_str());
+            }
+        }
+        return anchors;
+    }
+    case StyleParamKey::text_align:
     case StyleParamKey::text_source:
     case StyleParamKey::text_transform:
     case StyleParamKey::sprite:
@@ -225,10 +240,11 @@ StyleParam::Value StyleParam::parseString(StyleParamKey key, const std::string& 
     case StyleParamKey::text_visible:
     case StyleParamKey::outline_visible:
     case StyleParamKey::collide:
+    case StyleParamKey::text_required:
     case StyleParamKey::text_collide:
         if (_value == "true") { return true; }
         if (_value == "false") { return false; }
-        LOGW("Bool value required for capitalized/visible. Using Default.");
+        LOGW("Invalid boolean value %s for key %s", _value.c_str(), StyleParam::keyName(key).c_str());
         break;
     case StyleParamKey::text_order:
         LOGW("text:order parameter is ignored.");
@@ -348,10 +364,11 @@ std::string StyleParam::toString() const {
     case StyleParamKey::sprite_default:
     case StyleParamKey::style:
     case StyleParamKey::text_align:
-    case StyleParamKey::anchor:
-    case StyleParamKey::text_anchor:
         if (!value.is<std::string>()) break;
         return k + value.get<std::string>();
+    case StyleParamKey::anchor:
+    case StyleParamKey::text_anchor:
+        return "[anchor]"; // TODO
     case StyleParamKey::interactive:
     case StyleParamKey::text_interactive:
     case StyleParamKey::tile_edges:
@@ -360,6 +377,7 @@ std::string StyleParam::toString() const {
     case StyleParamKey::outline_visible:
     case StyleParamKey::centroid:
     case StyleParamKey::collide:
+    case StyleParamKey::text_required:
     case StyleParamKey::text_collide:
         if (!value.is<bool>()) break;
         return k + std::to_string(value.get<bool>());

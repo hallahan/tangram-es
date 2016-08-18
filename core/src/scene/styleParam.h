@@ -1,5 +1,6 @@
 #pragma once
 
+#include "labels/labelProperty.h"
 #include "util/variant.h"
 #include "glm/vec2.hpp"
 #include <string>
@@ -58,6 +59,7 @@ enum class StyleParamKey : uint8_t {
     transition_hide_time,
     transition_selected_time,
     transition_show_time,
+    text_required,
     text_transition_hide_time,
     text_transition_selected_time,
     text_transition_show_time,
@@ -130,7 +132,7 @@ struct StyleParam {
         }
     };
 
-    using Value = variant<none_type, bool, float, uint32_t, std::string, glm::vec2, Width>;
+    using Value = variant<none_type, bool, float, uint32_t, std::string, glm::vec2, Width, LabelProperty::Anchors>;
 
     StyleParam() :
         key(StyleParamKey::none),

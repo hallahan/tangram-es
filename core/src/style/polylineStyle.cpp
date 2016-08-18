@@ -82,17 +82,17 @@ void PolylineStyle::constructVertexLayout() {
 
 }
 
-void PolylineStyle::onBeginDrawFrame(const View& _view, Scene& _scene) {
-    Style::onBeginDrawFrame(_view, _scene);
+void PolylineStyle::onBeginDrawFrame(RenderState& rs, const View& _view, Scene& _scene) {
+    Style::onBeginDrawFrame(rs, _view, _scene);
 
     if (m_texture) {
-        GLuint textureUnit = RenderState::nextAvailableTextureUnit();
+        GLuint textureUnit = rs.nextAvailableTextureUnit();
 
-        m_texture->update(textureUnit);
-        m_texture->bind(textureUnit);
+        m_texture->update(rs, textureUnit);
+        m_texture->bind(rs, textureUnit);
 
-        m_shaderProgram->setUniformi(m_uTexture, textureUnit);
-        m_shaderProgram->setUniformf(m_uTextureRatio, m_texture->getHeight() / m_texture->getWidth());
+        m_shaderProgram->setUniformi(rs, m_uTexture, textureUnit);
+        m_shaderProgram->setUniformf(rs, m_uTextureRatio, m_texture->getHeight() / m_texture->getWidth());
     }
 }
 
@@ -189,10 +189,10 @@ private:
 
     std::vector<MeshData<V>> m_meshData;
 
-    float m_tileUnitsPerMeter;
-    float m_tileSizePixels;
-    int m_zoom;
-    float m_overzoom2;
+    float m_tileUnitsPerMeter = 0;
+    float m_tileSizePixels = 0;
+    int m_zoom = 0;
+    float m_overzoom2 = 1;
 };
 
 template <class V>

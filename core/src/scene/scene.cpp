@@ -27,6 +27,8 @@ Scene::Scene(const std::string& _path)
       m_path(_path),
       m_fontContext(std::make_shared<FontContext>()) {
 
+    resourceLoad = 0;
+
     std::regex r("^(http|https):/");
     std::smatch match;
 
@@ -101,6 +103,14 @@ int Scene::getIdForName(const std::string& _name) const {
         return -1;
     }
     return it - m_names.begin();
+}
+
+int Scene::addJsFunction(const std::string& _function) {
+    for (size_t i = 0; i < m_jsFunctions.size(); i++) {
+        if (m_jsFunctions[i] == _function) { return i; }
+    }
+    m_jsFunctions.push_back(_function);
+    return m_jsFunctions.size()-1;
 }
 
 const Light* Scene::findLight(const std::string &_name) const {
