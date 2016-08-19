@@ -10,6 +10,9 @@
 #include "osm/xmlParser.h"
 #include "platform.h"
 
+#include <SQLiteCpp/SQLiteCpp.h>
+#include <SQLiteCpp/VariadicBind.h>
+
 namespace Tangram {
 
 OsmXmlSource::OsmXmlSource(const std::string& _name, const std::string& _urlTemplate, 
@@ -44,6 +47,14 @@ std::shared_ptr<TileData> OsmXmlSource::parse(const TileTask& _task,
     };
 
     tileData->layers.push_back(memoryDataSet->getLayer(projFn, m_id));
+
+    LOGN("SQLite3 version: %s", SQLite::VERSION);
+    LOGN("SQLiteC++ version: %s", SQLITECPP_VERSION);
+    SQLite::Database db(":memory:");
+//    db.execAndGet("CREATE TABLE IF NOT EXISTS test(col1 TEXT, col2 TEXT);");
+//    db.execAndGet("INSERT OR REPLACE INTO test VALUES ('test1', 'test2');");
+//    const char* value = db.execAndGet("SELECT col1 FROM test WHERE col2='test2'");
+//    LOGN("Selected value from db: %s", value);
 
     return tileData;
 

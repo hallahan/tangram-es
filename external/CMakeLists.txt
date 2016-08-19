@@ -140,3 +140,9 @@ endif()
 set(GLM_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../core/include/glm)
 
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/alfons)
+
+## SQliteCpp ##
+###############
+#include_directories ("${CMAKE_CURRENT_SOURCE_DIR}/SQLiteCpp")
+add_subdirectory (SQLiteCpp)
+#set (LIBS ${LIBS} SQLiteCpp sqlite3)
