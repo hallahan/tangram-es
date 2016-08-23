@@ -34,3 +34,6 @@
 [submodule "external/SQLiteCpp"]
 	path = external/SQLiteCpp
 	url = https://github.com/SRombauts/SQLiteCpp.git
+[submodule "external/libxml2.cmake"]
+	path = external/libxml2.cmake
+	url = https://github.com/martell/libxml2.cmake.git

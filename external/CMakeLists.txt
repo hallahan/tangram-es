@@ -143,6 +143,8 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/alfons)
 
 ## SQliteCpp ##
 ###############
-#include_directories ("${CMAKE_CURRENT_SOURCE_DIR}/SQLiteCpp")
-add_subdirectory (SQLiteCpp)
-#set (LIBS ${LIBS} SQLiteCpp sqlite3)
+add_subdirectory(SQLiteCpp)
+
+## libxml2 ##
+#############
+add_subdirectory(libxml2.cmake)

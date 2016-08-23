@@ -53,6 +53,7 @@ set(CORE_LIBRARIES_INCLUDE_DIRS
     ${PROJECT_SOURCE_DIR}/${INCLUDE_DIR}/rapidjson
     ${PROJECT_SOURCE_DIR}/${INCLUDE_DIR}/rapidxml
     ${PROJECT_SOURCE_DIR}/${INCLUDE_DIR}/SQLiteCpp
+    ${PROJECT_SOURCE_DIR}/${INCLUDE_DIR}/libxml2.cmake
     ${PROJECT_SOURCE_DIR}/${INCLUDE_DIR}/isect2d/include
     CACHE INTERNAL "core libraries include directories" FORCE)
 
@@ -69,7 +70,8 @@ target_link_libraries(${CORE_LIBRARY}
   yaml-cpp
   alfons
   SQLiteCpp
-  sqlite3)
+  sqlite3
+  xml2)
 
 target_include_directories(${CORE_LIBRARY}
   PUBLIC
