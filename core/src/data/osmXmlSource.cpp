@@ -50,11 +50,19 @@ std::shared_ptr<TileData> OsmXmlSource::parse(const TileTask& _task,
 
     LOGN("SQLite3 version: %s", SQLite::VERSION);
     LOGN("SQLiteC++ version: %s", SQLITECPP_VERSION);
-    SQLite::Database db(":memory:");
+    SQLite::Database db("/Users/njh/code/tangram-es/external/SQLiteCpp/examples/example1/example.db3");
 //    db.execAndGet("CREATE TABLE IF NOT EXISTS test(col1 TEXT, col2 TEXT);");
 //    db.execAndGet("INSERT OR REPLACE INTO test VALUES ('test1', 'test2');");
 //    const char* value = db.execAndGet("SELECT col1 FROM test WHERE col2='test2'");
 //    LOGN("Selected value from db: %s", value);
+
+    // Test if the 'test' table exists
+    const bool bExists = db.tableExists("test");
+    LOGN("SQLite table 'test' exists= %b", bExists);
+
+    // Get a single value result with an easy to use shortcut
+    const std::string value = db.execAndGet("SELECT value FROM test WHERE id=2");
+    LOGN("execAndGet= %s", value.c_str());
 
     return tileData;
 
