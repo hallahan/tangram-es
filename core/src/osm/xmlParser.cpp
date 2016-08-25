@@ -11,6 +11,14 @@ m_dataSet(_dataSet) {
 }
 
 XmlParser& XmlParser::parse(char* _xmlString) {
+    pugi::xml_document doc;
+    pugi::xml_parse_result result = doc.load(_xmlString);
+    if (result) {
+        LOGN("pugixml parse success: %s", _xmlString);
+    } else {
+        LOGE("OSM XML String failed to parse: %s", _xmlString);
+    }
+
     try {
         //LOGN("xmlString: %s", _xmlString);
         m_doc.parse<0>(_xmlString);
