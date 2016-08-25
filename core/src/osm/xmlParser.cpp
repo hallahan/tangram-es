@@ -11,9 +11,6 @@ m_dataSet(_dataSet) {
 }
 
 XmlParser& XmlParser::parse(char* _xmlString) {
-    xmlInitParser();
-    xmlTextReaderPtr reader = xmlReaderForMemory(_xmlString, (int)strlen(_xmlString), NULL, NULL, 0);
-
     try {
         //LOGN("xmlString: %s", _xmlString);
         m_doc.parse<0>(_xmlString);

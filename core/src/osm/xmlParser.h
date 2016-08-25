@@ -4,7 +4,6 @@
 #include <string>
 #include "memoryDataSet.h"
 #include "rapidxml/rapidxml.hpp"
-#include <libxml/xmlreader.h>
 
 namespace OSM {
 

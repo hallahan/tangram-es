@@ -12,9 +12,6 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     list(APPEND CORE_CXX_FLAGS -Wno-gnu-zero-variadic-macro-arguments)
 endif()
 
-find_package(libxml2)
-include_directories(${LIBXML2_INCLUDE_DIR})
-
 set(INCLUDE_DIR include)
 set(SOURCE_DIR src)
 set(CORE_LIBRARY core CACHE INTERNAL "core library name" FORCE)
@@ -72,8 +69,7 @@ target_link_libraries(${CORE_LIBRARY}
   yaml-cpp
   alfons
   SQLiteCpp
-  sqlite3
-  ${LIBXML2_LIBRARIES})
+  sqlite3)
 
 target_include_directories(${CORE_LIBRARY}
   PUBLIC
