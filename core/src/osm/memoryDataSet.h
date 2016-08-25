@@ -24,17 +24,17 @@ public:
     // OSM Element found at beginning of XML Document
     void addOSM(const std::string& version, const std::string& generator);
     
-    std::shared_ptr<Node> createNode(const std::string& _idStr, const std::string& _latStr, const std::string& _lonStr, const std::string& _versionStr,
-                 const std::string& _timestampStr, const std::string& _changesetStr, const std::string& _uidStr,
-                 const std::string& _userStr, const std::string& _actionStr, const std::string& _visibleStr);
+    std::shared_ptr<Node> createNode(const long _id, const double _lat, const double _lon, const long _version,
+                 const std::string& _timestamp, const long _changeset, const long _uid,
+                 const std::string& _user, const std::string& _action, const std::string& _visible);
     
-    std::shared_ptr<Way> createWay(const std::string& _idStr, const std::string& _versionStr,
-                 const std::string& _timestampStr, const std::string& _changesetStr, const std::string& _uidStr,
-                 const std::string& _userStr, const std::string& _actionStr, const std::string& _visibleStr);
+    std::shared_ptr<Way> createWay(const long _id, const long _version,
+                 const std::string& _timestamp, const long _changeset, const long _uid,
+                 const std::string& _user, const std::string& _action, const std::string& _visible);
     
-    std::shared_ptr<Relation> createRelation(const std::string& _idStr, const std::string& _versionStr,
-                const std::string& _timestampStr, const std::string& _changesetStr, const std::string& _uidStr,
-                const std::string& _userStr, const std::string& _actionStr, const std::string& _visibleStr);
+    std::shared_ptr<Relation> createRelation(const long _id, const long _version,
+                const std::string& _timestamp, const long _changeset, const long _uid,
+                const std::string& _user, const std::string& _action, const std::string& _visible);
     
     /**
      * Done after parsing is complete, 

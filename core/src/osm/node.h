@@ -8,9 +8,9 @@ namespace OSM {
 class Node : public Element {
 
 public:
-    explicit Node(const long _id, const std::string& _latStr, const std::string& _lonStr, const std::string& _versionStr,
-                  const std::string& _timestampStr, const std::string& _changesetStr, const std::string& _uidStr,
-                  const std::string& _userStr, const std::string& _actionStr, const std::string& _visibleStr);
+    explicit Node(const long _id, const double _lat, const double _lon, const long _version,
+                  const std::string& _timestamp, const long _changeset, const long _uid,
+                  const std::string& _user, const std::string& _action, const std::string& _visible);
 
     glm::dvec2 lonLat() const { return glm::dvec2(m_lon, m_lat); }
 

@@ -12,12 +12,12 @@ class Element {
 
 public:
 
-    explicit Element(const long _id, const std::string& _versionStr, 
-                     const std::string& _timestampStr, const std::string& _changesetStr, 
-                     const std::string& _uidStr, const std::string& _userStr, 
-                     const std::string& _actionStr, const std::string& _visibleStr);
+    explicit Element(const long _id, const long _version,
+                     const std::string& _timestamp, const long _changeset,
+                     const long _uid, const std::string& _user,
+                     const std::string& _action, const std::string& _visible);
 
-    void addParsedTag(const std::string k, const std::string v);
+    void addParsedTag(const std::string& k, const std::string& v);
     
     // Read only tag accessor
     const Tags& tags() const { return m_tags; };

@@ -1,8 +1,6 @@
 #include "xmlParser.h"
 #include "platform.h"
 
-using namespace rapidxml;
-
 namespace OSM {
 
 XmlParser::XmlParser(std::shared_ptr<MemoryDataSet> _dataSet) :
@@ -11,30 +9,22 @@ m_dataSet(_dataSet) {
 }
 
 XmlParser& XmlParser::parse(char* _xmlString) {
-    pugi::xml_document doc;
-    pugi::xml_parse_result result = doc.load(_xmlString);
+    pugi::xml_parse_result result = m_doc.load(_xmlString);
     if (result) {
-        LOGN("pugixml parse success: %s", _xmlString);
+        // LOGN("pugixml parse success: %s", _xmlString);
+        readOsm(m_doc.child("osm"));
+        m_dataSet->postProcess();
     } else {
         LOGE("OSM XML String failed to parse: %s", _xmlString);
     }
 
-    try {
-        //LOGN("xmlString: %s", _xmlString);
-        m_doc.parse<0>(_xmlString);
-        readOsm(m_doc.first_node());
-        m_dataSet->postProcess();
-    } catch (...) {
-        
-    }
     return *this;
 }
 
-void XmlParser::readOsm(xml_node<>* _rootOsmNode) {
+void XmlParser::readOsm(const pugi::xml_node& _rootOsmNode) {
     // Iterate through all of the OSM Elements.
-    xml_node<>* osmElement = _rootOsmNode->first_node();
-    while (osmElement) {
-        std::string name = osmElement->name();
+    for (auto osmElement : _rootOsmNode.children()) {
+        std::string name = osmElement.name();
         if (name == "node") {
             readNode(osmElement);
         } else if (name == "way") {
@@ -48,175 +38,85 @@ void XmlParser::readOsm(xml_node<>* _rootOsmNode) {
         } else if (name == "meta") {
             readMeta(osmElement);
         }
-        osmElement = osmElement->next_sibling();
     }
 }
 
-void XmlParser::readBounds(rapidxml::xml_node<>* _osmElement) {
+void XmlParser::readBounds(const pugi::xml_node& _osmElement) {
 
 }
 
-void XmlParser::readNote(rapidxml::xml_node<>* _osmElement) {
+void XmlParser::readNote(const pugi::xml_node& _osmElement) {
 
 }
 
-void XmlParser::readMeta(rapidxml::xml_node<>* _osmElement) {
+void XmlParser::readMeta(const pugi::xml_node& _osmElement) {
 
 }
 
-void XmlParser::readNode(rapidxml::xml_node<>* _osmElement) {
-    std::string idStr;
-    std::string latStr;
-    std::string lonStr;
-    std::string versionStr;
-    std::string timestampStr;
-    std::string changesetStr;
-    std::string uidStr;
-    std::string userStr;
-    std::string actionStr;
-    std::string visibleStr;
-    
-    // read attributes
-    xml_attribute<>* attr = _osmElement->first_attribute("id");
-    if (attr) {
-        idStr = attr->value();
-    }
-    attr = _osmElement->first_attribute("lat");
-    if (attr) {
-        latStr = attr->value();
-    }
-    attr = _osmElement->first_attribute("lon");
-    if (attr) {
-        lonStr = attr->value();
-    }
-    attr = _osmElement->first_attribute("version");
-    if (attr) {
-        versionStr = attr->value();
-    }
-    attr = _osmElement->first_attribute("timestamp");
-    if (attr) {
-        timestampStr = attr->value();
-    }
-    attr = _osmElement->first_attribute("changeset");
-    if (attr) {
-        changesetStr = attr->value();
-    }
-    attr = _osmElement->first_attribute("uid");
-    if (attr) {
-        uidStr = attr->value();
-    }
-    attr = _osmElement->first_attribute("user");
-    if (attr) {
-        userStr = attr->value();
-    }
-    attr = _osmElement->first_attribute("action");
-    if (attr) {
-        actionStr = attr->value();
-    }
-    attr = _osmElement->first_attribute("visible");
-    if (attr) {
-        visibleStr = attr->value();
-    }
+void XmlParser::readNode(const pugi::xml_node& _osmElement) {
 
-    std::shared_ptr<Node> n = m_dataSet->createNode(idStr, latStr, lonStr, versionStr, timestampStr,
-                                changesetStr, uidStr, userStr, actionStr, visibleStr);
+    // Read Attributes
+    long id = _osmElement.attribute("id").as_llong();
+    double lat = _osmElement.attribute("lat").as_double();
+    double lon = _osmElement.attribute("lon").as_double();
+    long version = _osmElement.attribute("version").as_llong();
+    std::string timestamp = _osmElement.attribute("version").as_string();
+    long changeset = _osmElement.attribute("changeset").as_llong();
+    long uid = _osmElement.attribute("uid").as_llong();
+    std::string user = _osmElement.attribute("user").as_string();
+    std::string action = _osmElement.attribute("action").as_string();
+    std::string visible = _osmElement.attribute("action").as_string();
+
+    // Create OSM Element
+    std::shared_ptr<Node> n = m_dataSet->createNode(id, lat, lon, version, timestamp,
+                                                    changeset, uid, user, action, visible);
     
     // get tags
-    rapidxml::xml_node<>* elChild = _osmElement->first_node();
-    if (elChild) {
-        std::string name = elChild->name();
-        if (name == "tag") {
-            readTag(elChild, n);
-        } 
-        elChild = elChild->next_sibling();
+    for (auto tag : _osmElement.children("tag")) {
+        readTag(tag, n);
     }
 }
 
-void XmlParser::readWay(rapidxml::xml_node<>* _osmElement) {
-    std::string idStr;
-    std::string versionStr;
-    std::string timestampStr;
-    std::string changesetStr;
-    std::string uidStr;
-    std::string userStr;
-    std::string actionStr;
-    std::string visibleStr;
+void XmlParser::readWay(const pugi::xml_node& _osmElement) {
 
-    xml_attribute<>* attr = _osmElement->first_attribute("id");
-    if (attr) {
-        idStr = attr->value();
-    }
-    attr = _osmElement->first_attribute("version");
-    if (attr) {
-        versionStr = attr->value();
-    }
-    attr = _osmElement->first_attribute("timestamp");
-    if (attr) {
-        timestampStr = attr->value();
-    }
-    attr = _osmElement->first_attribute("changeset");
-    if (attr) {
-        changesetStr = attr->value();
-    }
-    attr = _osmElement->first_attribute("uid");
-    if (attr) {
-        uidStr = attr->value();
-    }
-    attr = _osmElement->first_attribute("user");
-    if (attr) {
-        userStr = attr->value();
-    }
-    attr = _osmElement->first_attribute("action");
-    if (attr) {
-        uidStr = attr->value();
-    }
-    attr = _osmElement->first_attribute("visible");
-    if (attr) {
-        userStr = attr->value();
+    // Read Attributes
+    long id = _osmElement.attribute("id").as_llong();
+    long version = _osmElement.attribute("version").as_llong();
+    std::string timestamp = _osmElement.attribute("version").as_string();
+    long changeset = _osmElement.attribute("changeset").as_llong();
+    long uid = _osmElement.attribute("uid").as_llong();
+    std::string user = _osmElement.attribute("user").as_string();
+    std::string action = _osmElement.attribute("action").as_string();
+    std::string visible = _osmElement.attribute("action").as_string();
+
+    std::shared_ptr<Way> w = m_dataSet->createWay(id, version, timestamp, changeset,
+                                                  uid, user, action, visible);
+
+    // get tags
+    for (auto tag : _osmElement.children("tag")) {
+        readTag(tag, w);
     }
 
-    std::shared_ptr<Way> w = m_dataSet->createWay(idStr, versionStr, timestampStr, changesetStr,
-                              uidStr, userStr, actionStr, visibleStr);
-
-    // get nds, tags
-    rapidxml::xml_node<>* elChild = _osmElement->first_node();
-    while (elChild) {
-        std::string name = elChild->name();
-        if (name == "tag") {
-            readTag(elChild, w);
-        } else if (name == "nd") {
-            readNd(elChild, w);
-        }
-        elChild = elChild->next_sibling();
-    }
-
-}
-
-void XmlParser::readRelation(rapidxml::xml_node<>* _osmElement) {
-
-}
-
-void XmlParser::readTag(rapidxml::xml_node<>* _xmlElement, std::shared_ptr<Element> _element) {
-    xml_attribute<>* kAttr = _xmlElement->first_attribute("k");
-    xml_attribute<>* vAttr = _xmlElement->first_attribute("v");
-    if (kAttr && vAttr) {
-        _element->addParsedTag(kAttr->value(), vAttr->value());
+    // get nds
+    for (auto nd : _osmElement.children("nd")) {
+        readNd(nd, w);
     }
 }
 
-void XmlParser::readNd(rapidxml::xml_node<>* _xmlElement, std::shared_ptr<Way> _way) {
-    xml_attribute<>* refAttr = _xmlElement->first_attribute("ref");
-    if (refAttr) {
-        try {
-            long refId = std::stol(std::string(refAttr->value()));
-            _way->addNodeRef(refId);
-        } catch(...) {
-            // TODO LOGE
-        }
-    }
+void XmlParser::readRelation(const pugi::xml_node& _osmElement) {
+
 }
 
-void XmlParser::readMember(rapidxml::xml_node<>* _xmlElement, std::shared_ptr<Relation> _relation) {
+void XmlParser::readTag(const pugi::xml_node& _xmlElement, std::shared_ptr<Element> _element) {
+    _element->addParsedTag(_xmlElement.attribute("k").value(),
+                           _xmlElement.attribute("v").value());
+}
+
+void XmlParser::readNd(const pugi::xml_node& _xmlElement, std::shared_ptr<Way> _way) {
+    _way->addNodeRef(_xmlElement.attribute("ref").as_llong());
+}
+
+void XmlParser::readMember(const pugi::xml_node& _xmlElement, std::shared_ptr<Relation> _relation) {
 
 }
 

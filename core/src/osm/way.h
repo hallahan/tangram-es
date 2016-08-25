@@ -11,9 +11,9 @@ namespace OSM {
 class Way : public Element {
 
 public:
-    explicit Way(const long _id, const std::string& _versionStr,
-                 const std::string& _timestampStr, const std::string& _changesetStr, const std::string& _uidStr,
-                 const std::string& _userStr, const std::string& _actionStr, const std::string& _visibleStr);
+    explicit Way(const long _id, const long _version,
+                 const std::string& _timestamp, const long _changeset, const long _uid,
+                 const std::string& _user, const std::string& _action, const std::string& _visible);
 
     void addNodeRef(long _refId);
     size_t linkNodes(const std::map<long, std::shared_ptr<Node>>& _nodes, const std::set<long>& _wayNodeIds);

@@ -3,7 +3,6 @@
 #include <memory>
 #include <string>
 #include "memoryDataSet.h"
-#include "rapidxml/rapidxml.hpp"
 #include "pugixml.hpp"
 
 namespace OSM {
@@ -15,19 +14,19 @@ public:
     XmlParser& parse(char* _xmlString);
 
 private:
-    void readOsm(rapidxml::xml_node<>* _rootOsmNode);
-    void readBounds(rapidxml::xml_node<>* _osmElement);
-    void readNote(rapidxml::xml_node<>* _osmElement);
-    void readMeta(rapidxml::xml_node<>* _osmElement);
-    void readNode(rapidxml::xml_node<>* _osmElement);
-    void readWay(rapidxml::xml_node<>* _osmElement);
-    void readRelation(rapidxml::xml_node<>* _osmElement);
-    void readTag(rapidxml::xml_node<>* _xmlElement, std::shared_ptr<Element> _element);
-    void readNd(rapidxml::xml_node<>* _xmlElement, std::shared_ptr<Way> _way);
-    void readMember(rapidxml::xml_node<>* _xmlElement, std::shared_ptr<Relation> _relation);
+    void readOsm(const pugi::xml_node& _rootOsmNode);
+    void readBounds(const pugi::xml_node& _osmElement);
+    void readNote(const pugi::xml_node& _osmElement);
+    void readMeta(const pugi::xml_node& _osmElement);
+    void readNode(const pugi::xml_node& _osmElement);
+    void readWay(const pugi::xml_node& _osmElement);
+    void readRelation(const pugi::xml_node& _osmElement);
+    void readTag(const pugi::xml_node& _xmlElement, std::shared_ptr<Element> _element);
+    void readNd(const pugi::xml_node& _xmlElement, std::shared_ptr<Way> _way);
+    void readMember(const pugi::xml_node& _xmlElement, std::shared_ptr<Relation> _relation);
 
     std::shared_ptr<MemoryDataSet> m_dataSet;
-    rapidxml::xml_document<> m_doc;
+    pugi::xml_document m_doc;
 };
 
 }
