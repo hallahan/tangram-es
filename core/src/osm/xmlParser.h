@@ -11,7 +11,7 @@ class XmlParser {
 
 public:
     explicit XmlParser(std::shared_ptr<MemoryDataSet> _dataSet);
-    XmlParser& parse(const std::string& _xmlString);
+    XmlParser& parse(const char* _xmlString, size_t size);
 
 private:
     void readOsm(const pugi::xml_node& _rootOsmNode);

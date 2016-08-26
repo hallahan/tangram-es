@@ -30,7 +30,7 @@ std::shared_ptr<TileData> OsmXmlSource::parse(const TileTask& _task,
     std::shared_ptr<OSM::MemoryDataSet> memoryDataSet = std::make_shared<OSM::MemoryDataSet>();
     OSM::XmlParser xmlParser(memoryDataSet);
     auto rawTileData = task.rawTileData;
-    xmlParser.parse(std::string(rawTileData->data(), rawTileData->size()));
+    xmlParser.parse(rawTileData->data(), rawTileData->size());
 
     LOGN("OSM XML Tile: %s - %zu elements", task.tileId().toString().c_str(), memoryDataSet->size());
 
