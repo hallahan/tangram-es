@@ -8,14 +8,16 @@ m_dataSet(_dataSet) {
 
 }
 
-XmlParser& XmlParser::parse(char* _xmlString) {
-    pugi::xml_parse_result result = m_doc.load(_xmlString);
+XmlParser& XmlParser::parse(const std::string& _xmlString) {
+    pugi::xml_parse_result result = m_doc.load_string(_xmlString.c_str());
     if (result) {
         // LOGN("pugixml parse success: %s", _xmlString);
         readOsm(m_doc.child("osm"));
         m_dataSet->postProcess();
     } else {
-        LOGE("OSM XML String failed to parse: %s", _xmlString);
+        LOGE("OSM XML parse error description: %s", result.description());
+        LOGE("OSM XML parse error offset: %td", result.offset);
+        LOGE("OSM XML parse error XML: %s", _xmlString.c_str());
     }
 
     return *this;
