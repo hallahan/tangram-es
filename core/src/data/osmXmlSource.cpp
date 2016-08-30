@@ -15,9 +15,9 @@
 
 namespace Tangram {
 
-OsmXmlSource::OsmXmlSource(const std::string& _name, const std::string& _urlTemplate, 
-                           int32_t _maxZoom, const std::shared_ptr<Scene> _scene) :
-    DataSource(_name, _urlTemplate, _maxZoom), m_scene(_scene) {
+OsmXmlSource::OsmXmlSource(const std::string& _name, const std::string& _urlTemplate,
+                           int32_t _minZoom, int32_t _maxZoom, const std::shared_ptr<Scene> _scene) :
+    DataSource(_name, _urlTemplate, _minZoom, _maxZoom), m_scene(_scene) {
 }
 
 std::shared_ptr<TileData> OsmXmlSource::parse(const TileTask& _task,

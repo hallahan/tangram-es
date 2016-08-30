@@ -18,7 +18,7 @@ protected:
 
 public:
         
-    OsmXmlSource(const std::string& _name, const std::string& _urlTemplate, int32_t _maxZoom,
+    OsmXmlSource(const std::string& _name, const std::string& _urlTemplate, int32_t _minZoom, int32_t _maxZoom,
                  const std::shared_ptr<Scene> _scene);
         
 };

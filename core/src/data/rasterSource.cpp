@@ -69,9 +69,9 @@ public:
 };
 
 
-RasterSource::RasterSource(const std::string& _name, const std::string& _urlTemplate, int32_t _maxZoom,
+RasterSource::RasterSource(const std::string& _name, const std::string& _urlTemplate, int32_t _minZoom, int32_t _maxZoom,
                            TextureOptions _options, bool _genMipmap)
-    : DataSource(_name, _urlTemplate, _maxZoom), m_texOptions(_options), m_genMipmap(_genMipmap) {
+    : DataSource(_name, _urlTemplate, _minZoom, _maxZoom), m_texOptions(_options), m_genMipmap(_genMipmap) {
 
     m_emptyTexture = std::make_shared<Texture>(nullptr, 0, m_texOptions, m_genMipmap);
 }
@@ -170,6 +170,11 @@ bool RasterSource::loadTileData(std::shared_ptr<TileTask>&& _task, TileTaskCb _c
     }
 
     return status;
+}
+
+void RasterSource::loadEmptyTexture(std::shared_ptr<TileTask>&& _task) {
+    auto& task = static_cast<RasterTileTask&>(*_task);
+    task.m_texture = m_emptyTexture;
 }
 
 Raster RasterSource::getRaster(const TileTask& _task) {
