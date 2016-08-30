@@ -1,7 +1,7 @@
 cameras:
     perspective:
         # Free Way Farm
-        position: [-121.369544, 38.649416, 17]
+        position: [-121.369544, 38.649416, 16]
         type: perspective
         vanishing_point: [0, -500]
 
@@ -27,6 +27,8 @@ sources:
     osmApi:
         type: OSM_XML
         url: http://www.openstreetmap.org/api/0.6/map?bbox={l},{b},{r},{t}
+        min_zoom: 16
+        max_zoom: 16
 layers:
     water:
         data: { source: mapzen }
