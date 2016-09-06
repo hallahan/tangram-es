@@ -9,6 +9,7 @@
 #include "glm/gtx/norm.hpp"
 
 #include <algorithm>
+#include <data/rasterSource.h>
 
 #define DBG(...) // LOGD(__VA_ARGS__)
 
@@ -123,7 +124,10 @@ void TileManager::updateTileSets(const ViewState& _view,
     m_tileSetChanged = false;
 
     for (auto& tileSet : m_tileSets) {
-        updateTileSet(tileSet, _view, _visibleTiles);
+        // check if tile set is active for zoom (zoom might be below min_zoom)
+        if (tileSet.source->isActiveForZoom(_view.zoom)) {
+            updateTileSet(tileSet, _view, _visibleTiles);
+        }
     }
 
     loadTiles();
@@ -384,11 +388,24 @@ void TileManager::loadSubTasks(std::vector<std::shared_ptr<DataSource>>& _subSou
         if (it != subTasks.end() && (*it)->subTaskId() == int(index)) { continue; }
 
         TileID subTileID = tileID;
+
+        // get tile for lower zoom if we are past max zoom
         if (subTileID.z > subSource->maxZoom()) {
             subTileID = subTileID.withMaxSourceZoom(subSource->maxZoom());
         }
         auto subTask = subSource->createTask(subTileID, index);
-        if (subTask->isReady()) {
+        // check if we are at valid zoom for source
+        if (!subSource->isActiveForZoom((float)subTileID.z)) {
+            // Right now all subSources are raster, but let's check anyway...
+            if (RasterSource* rasterSubSource = dynamic_cast<RasterSource*>(subSource.get())) {
+                subTasks.insert(it, subTask);
+                // If the subSource isn't active for the zoom, we should just
+                // load an empty texture and move on.
+                rasterSubSource->loadEmptyTexture(std::move(subTask));
+                assert(subTask->isReady());
+                requestRender();
+            }
+        } else if (subTask->isReady()) {
             subTasks.insert(it, subTask);
             requestRender();
 
@@ -568,11 +585,15 @@ void TileManager::updateProxyTiles(TileSet& _tileSet, const TileID& _tileID, Til
 
     // Try parent proxy
     auto parentID = _tileID.getParent();
-    if (updateProxyTile(_tileSet, _tile, parentID, ProxyID::parent)) {
+    auto minZoom = _tileSet.source->minZoom();
+    if (minZoom <= parentID.z
+            && updateProxyTile(_tileSet, _tile, parentID, ProxyID::parent)) {
         return;
     }
     // Try grandparent
-    if (updateProxyTile(_tileSet, _tile, parentID.getParent(), ProxyID::parent2)) {
+    auto grandparentID = parentID.getParent();
+    if (minZoom <= grandparentID.z
+            && updateProxyTile(_tileSet, _tile, grandparentID, ProxyID::parent2)) {
         return;
     }
     // Try children
