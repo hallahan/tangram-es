@@ -23,7 +23,7 @@ class ClientGeoJsonSource : public DataSource {
 
 public:
 
-    ClientGeoJsonSource(const std::string& _name, const std::string& _url,
+    ClientGeoJsonSource(const std::string& _name, const std::string& _url, const std::string& _mbtiles = "",
                         int32_t _minDisplayZoom = 0, int32_t _maxDisplayZoom = INT32_MAX, int32_t _maxZoom = 18);
     ~ClientGeoJsonSource();
 

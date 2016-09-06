@@ -27,7 +27,7 @@ public:
      * each of '{x}', '{y}', and '{z}' which will be replaced by the x index, y index,
      * and zoom level of tiles to produce their URL.
      */
-    DataSource(const std::string& _name, const std::string& _urlTemplate,
+    DataSource(const std::string& _name, const std::string& _urlTemplate, const std::string& _mbtiles = "",
                int32_t _minDisplayZoom = 0, int32_t _maxDisplayZoom = INT32_MAX, int32_t _maxZoom = 18);
 
     virtual ~DataSource();
@@ -87,6 +87,14 @@ public:
     /* Avoid RTTI by adding a boolean check on the data source object */
     virtual bool isRaster() const { return false; }
 
+    bool isOfflineOnly() {
+        return m_mbtiles.size() > 0 && m_urlTemplate.size() == 0;
+    }
+
+    bool hasMBTiles() {
+        return m_mbtiles.size() > 0;
+    }
+
 protected:
 
     virtual void onTileLoaded(std::vector<char>&& _rawData, std::shared_ptr<TileTask>&& _task,
@@ -111,6 +119,12 @@ protected:
     // Name used to identify this source in the style sheet
     std::string m_name;
 
+    // URL template for requesting tiles from a network or filesystem
+    std::string m_urlTemplate;
+
+    // The path to an mbtiles tile store. Empty string if not present.
+    std::string m_mbtiles;
+
     // Minimum zoom for which tiles will be displayed
     int32_t m_minDisplayZoom;
 
@@ -125,9 +139,6 @@ protected:
 
     // Generation of dynamic DataSource state (incremented for each update)
     int64_t m_generation = 1;
-
-    // URL template for requesting tiles from a network or filesystem
-    std::string m_urlTemplate;
 
     std::unique_ptr<RawCache> m_cache;
 
